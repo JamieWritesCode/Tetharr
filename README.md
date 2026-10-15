@@ -4,7 +4,7 @@ Choose which Radarr and Sonarr titles live on local disk and which stream from u
 
 If your Arrs import symlinks into a usenet mount (NzbDav, AltMount and similar, mounted with rclone), you get an effectively unlimited library that takes almost no disk space. Sometimes you still want a title kept locally: the show you're watching right now, the kids' films, anything you'd hate to lose to a takedown. Tetharr swaps a title's symlinks for real copies at the same paths, and back again, so Plex/Jellyfin watch state and the Arrs' records never notice.
 
-> **Status:** early development. Pinning and unpinning work for Radarr movies. Sonarr, Preview mode and login are still to come, so don't point it at a library you care about yet.
+> **Status:** early development. Pinning and unpinning work for Radarr movies and Sonarr series and seasons. Login is still to come, so don't point it at a library you care about yet.
 >
 > There is no login yet. Only run Tetharr on a network you trust.
 
@@ -14,12 +14,17 @@ If your Arrs import symlinks into a usenet mount (NzbDav, AltMount and similar, 
 services:
   tetharr:
     image: ghcr.io/jamiewritescode/tetharr:dev
+    environment:
+      - PUID=99 # the user and group your Arrs run as
+      - PGID=100
     volumes:
       - ./config:/config
       - /mnt/user/media:/data:rw,rslave # rslave is required, see below
     ports:
       - 8787:8787
 ```
+
+Tetharr runs as the user and group in `PUID` and `PGID` (default `99` and `100`, Unraid's `nobody:users`), so its copies are owned like the rest of your library and your Arrs and media server can manage them. Set them to whatever user your Arrs run as. `UMASK` (default `002`) sets the permissions of the files it creates. On start it takes ownership of `/config`, and never changes the ownership of your media.
 
 Open `http://<host>:8787`, go to **Settings**, and add your Radarr. You'll find its API key in Radarr under Settings → General. **Test** checks the connection before you save.
 

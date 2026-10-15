@@ -66,7 +66,8 @@ export async function copy(link: string, reserve: number): Promise<{ size: numbe
   if (bavail * bsize < size + reserve)
     throw new Error(`Not enough free space in ${dir} to copy ${path.basename(link)}`);
 
-  // Copy the file next to the link under a hidden name with no media extension, which media scanners ignore
+  // Copy the file next to the link under a hidden name with no media extension, which media scanners ignore. The copy
+  // keeps the streamed file's permissions, and is owned by the user Tetharr runs as
   const temp = partial(link);
   active = { temp, size };
   try {
