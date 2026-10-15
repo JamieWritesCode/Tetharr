@@ -5,7 +5,7 @@
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import type { Arr } from "../../schemas/arr.ts";
+import type { Input } from "../../schemas/arr.ts";
 
 /**
  * Whether a path is inside a folder. It compares whole folder names, so /data/lib does not count as containing
@@ -20,7 +20,7 @@ export function within(root: string, p: string): boolean {
  * Turns a path as the Arr reports it into the path Tetharr sees. The first matching mapping wins, and a path no mapping
  * covers is used as it is.
  */
-export function map(arr: Arr, p: string): string {
+export function map(arr: Input, p: string): string {
   const mapping = arr.path_mappings.find((m) => within(m.from, p));
   return mapping ? path.join(mapping.to, path.relative(mapping.from, p)) : p;
 }

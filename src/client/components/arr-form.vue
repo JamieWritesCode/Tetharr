@@ -10,11 +10,13 @@ import {
   PhCheckCircle,
   PhEye,
   PhEyeSlash,
+  PhMinusCircle,
   PhPlugsConnected,
   PhPlus,
   PhTrash,
   PhWarningCircle,
   PhX,
+  PhXCircle,
 } from "@phosphor-icons/vue";
 import { computed, reactive, ref, watch } from "vue";
 import * as ArrSchema from "../../schemas/arr.ts";
@@ -238,9 +240,18 @@ async function forget(arr: Saved) {
         </button>
       </section>
 
-      <div v-if="tested" role="alert" class="alert alert-soft alert-success">
-        <PhCheckCircle class="size-5" />Connected to {{ TYPES[form.type].label }} {{ tested.version }}.
-      </div>
+      <!-- The test's checks: passed, failed, or couldn't be checked, each with what was found or what to change -->
+      <ul v-if="tested" class="flex flex-col gap-3 rounded-box bg-base-200 p-4" aria-label="Test results">
+        <li v-for="check in tested.checks" :key="check.label" class="flex gap-3 text-sm">
+          <PhCheckCircle v-if="check.ok" weight="fill" class="size-5 shrink-0 text-success" />
+          <PhXCircle v-else-if="check.ok === false" weight="fill" class="size-5 shrink-0 text-error" />
+          <PhMinusCircle v-else weight="fill" class="size-5 shrink-0 text-base-content/40" />
+          <div class="min-w-0">
+            <p class="font-medium break-words">{{ check.label }}</p>
+            <p class="break-words text-base-content/70">{{ check.detail }}</p>
+          </div>
+        </li>
+      </ul>
       <div
         v-for="err in [testError, saveError, removeError].filter(Boolean)"
         :key="err!.message"
