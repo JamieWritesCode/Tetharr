@@ -10,22 +10,35 @@ import * as CopiesService from "./services/copies.ts";
 import type { Copy } from "./services/copies.ts";
 import * as FilesService from "./services/files.ts";
 import * as LibraryService from "./services/library.ts";
-import type { Entry } from "./services/library.ts";
 import * as LogService from "./services/log.ts";
 import * as PathsService from "./services/paths.ts";
 import * as PinsService from "./services/pins.ts";
 import * as SettingsService from "./services/settings.ts";
 
 /**
- * What the worker is doing right now: which title, and whether it's copying, putting a link back, or deleting a copy so
- * the Arr can download the title again.
+ * What the worker is doing right now: which title (and season, and file, when it's one file of a series), and whether
+ * it's copying, putting a link back, or deleting a copy so the Arr can download the title again.
  */
 export interface Activity {
   action: "copying" | "restoring" | "regrabbing";
   arr: number;
   media: number;
+  season: number | null;
+  path: string | null;
   title: string;
 }
+
+/**
+ * The title a step works on: its id in the Arr, the season (for a series), and a name for the activity and the logs.
+ */
+interface Target {
+  media: number;
+  season: number | null;
+  title: string;
+}
+
+// Run one step, recording its problem rather than stopping the whole pass
+type Attempt = (fields: object, step: () => Promise<void>) => Promise<void>;
 
 // How long the worker waits between passes when nothing asks it to run sooner
 const INTERVAL = 5 * 60_000;
@@ -84,14 +97,12 @@ async function run(): Promise<void> {
 }
 
 /**
- * Goes through every Radarr and brings its files in line with the pins. Returns the problems it hit.
+ * Goes through every Arr and brings its files in line with the pins. Returns the problems it hit.
  */
 async function pass(): Promise<string[]> {
   const problems: string[] = [];
   const { reserve_gb, unpin } = SettingsService.options();
-
-  // Run one step, recording its problem rather than stopping the whole pass
-  const attempt = async (fields: object, step: () => Promise<void>) => {
+  const attempt: Attempt = async (fields, step) => {
     try {
       await step();
     } catch (err) {
@@ -100,52 +111,10 @@ async function pass(): Promise<string[]> {
     }
   };
 
-  for (const arr of SettingsService.arrs().filter((a) => a.type === "radarr")) {
-    await attempt({ arr: arr.name }, async () => {
-      // Safety: never act on a dead mount. Every library folder the Arr uses must be there before anything changes
-      await PathsService.verify((await ArrService.roots(arr)).map((root) => PathsService.map(arr, root)));
-      const movies = await LibraryService.entries(arr);
-      const copies = CopiesService.list(arr.id);
-
-      // Whether the mount looks up: at least one streamed link in this library can be followed
-      const mounted = movies.some((m) => m.state === "streamed");
-
-      // Tidy up after movies Radarr no longer lists. Safety: an empty list from Radarr is no proof anything's gone
-      if (movies.length) {
-        const listed = new Set(movies.map((m) => m.id));
-        const pins = PinsService.list(arr.id);
-        for (const copy of copies.filter((c) => !listed.has(c.media))) {
-          // A movie removed and added again gets a new id but keeps its path, so its copy and pin follow it
-          const readded = movies.find((m) => m.path === copy.path);
-          if (readded) {
-            CopiesService.add({ ...copy, media: readded.id });
-            if (pins.has(copy.media)) {
-              PinsService.remove(arr.id, copy.media);
-              PinsService.add(arr.id, readded.id);
-            }
-          }
-          // Forget copies whose files are already gone. Copies still on disk wait for the user to keep or delete them
-          else if ((await FilesService.check(copy)) !== "copy") CopiesService.remove(copy.path);
-        }
-
-        // Forget pins for movies that are gone, unless their copy is still waiting for the user
-        const waiting = new Set(CopiesService.list(arr.id).map((c) => c.media));
-        for (const media of PinsService.list(arr.id)) {
-          if (!listed.has(media) && !waiting.has(media)) PinsService.remove(arr.id, media);
-        }
-      }
-
-      // Copy what's pinned and still streamed, and undo Tetharr's copies of anything no longer pinned
-      for (const movie of movies) {
-        const owned = copies.filter((c) => c.media === movie.id);
-        const fields = { arr: arr.name, title: movie.title, path: movie.path };
-        if (movie.pinned && movie.state === "streamed") {
-          await attempt(fields, () => copy(arr, movie, reserve_gb * 1024 ** 3));
-        } else if (!movie.pinned && owned.length) {
-          await attempt(fields, () => release(arr, movie, owned, unpin === "restore", mounted));
-        }
-      }
-    });
+  // Each Arr in turn. A problem with one is recorded and the rest carry on
+  for (const arr of SettingsService.arrs()) {
+    const flow = arr.type === "radarr" ? movies : shows;
+    await attempt({ arr: arr.name }, () => flow(arr, reserve_gb * 1024 ** 3, unpin === "restore", attempt));
   }
 
   // Finish removing connections whose copies have all been undone
@@ -158,27 +127,150 @@ async function pass(): Promise<string[]> {
 }
 
 /**
- * Turns a pinned movie's streamed link into a local copy, records the copy, and lets Radarr know.
+ * Brings one Radarr's files in line with its pins: copies pinned movies that are still streamed, and undoes copies of
+ * movies that are no longer pinned.
  */
-async function copy(arr: Arr, movie: Entry, reserve: number): Promise<void> {
-  current = { action: "copying", arr: arr.id, media: movie.id, title: movie.title };
-  LogService.info("copying", { arr: arr.name, title: movie.title, path: movie.path });
-  const { size, target } = await FilesService.copy(movie.path!, reserve);
+async function movies(arr: Arr, reserve: number, restore: boolean, attempt: Attempt): Promise<void> {
+  // Safety: never act on a dead mount. Every library folder the Arr uses must be there before anything changes
+  await PathsService.verify((await ArrService.roots(arr)).map((root) => PathsService.map(arr, root)));
+  const movies = await LibraryService.entries(arr);
 
-  // Record the copy straight away: from now on, this record is the only thing that lets Tetharr delete the file
-  CopiesService.add({ path: movie.path!, arr: arr.id, media: movie.id, target, size });
-  LogService.info("copied", { arr: arr.name, title: movie.title, path: movie.path, size });
+  // Tidy up first, then read the pins and copies as they now stand
+  await tidy(arr, movies, (copy) => movies.find((m) => m.path === copy.path)?.id);
+  const pins = PinsService.list(arr.id);
+  const copies = CopiesService.list(arr.id);
 
-  // Have Radarr look at the file again, so its records show a real file
-  await ArrService.rescan(arr, movie.id);
+  // Whether the mount looks up: some link in this library can be followed, or some copy's original link target still
+  // can be, which proves the mount is there even when everything examined is local
+  const mounted = movies.some((m) => m.state === "streamed" || m.restorable);
+
+  for (const movie of movies) {
+    const target = { media: movie.id, season: null, title: movie.title };
+    const fields = { arr: arr.name, title: movie.title, path: movie.path };
+    const owned = copies.filter((c) => c.media === movie.id && c.path === movie.path);
+
+    // Copy a pinned movie that's still streamed, then have Radarr look at its file again
+    if (pins.has(movie.id) && movie.state === "streamed") {
+      await attempt(fields, async () => {
+        await copy(arr, target, movie.path!, reserve);
+        await ArrService.rescan(arr, movie.id);
+      });
+    }
+    // Undo the copy of a movie that's no longer pinned
+    else if (!pins.has(movie.id) && owned.length) {
+      await attempt(fields, () => release(arr, target, owned, restore, mounted));
+    }
+
+    // Forget copies of files Radarr no longer has for this movie (deleted, or replaced by an upgrade) once they're gone
+    for (const copy of copies.filter((c) => c.media === movie.id && c.path !== movie.path)) {
+      if ((await FilesService.check(copy)) !== "copy") CopiesService.remove(copy.path);
+    }
+  }
 }
 
 /**
- * Undoes Tetharr's copies of a movie that's no longer pinned. Each copy's link is put back if its streamed file can
- * still be reached. Otherwise the copy is deleted and Radarr downloads the movie again.
+ * Brings one Sonarr's files in line with its pins: copies the streamed episodes of pinned series and seasons, and
+ * undoes copies of seasons that are no longer pinned. A series pin is live, so episodes that arrive later are copied
+ * too.
  */
-async function release(arr: Arr, movie: Entry, copies: Copy[], restore: boolean, mounted: boolean): Promise<void> {
-  current = { action: "restoring", arr: arr.id, media: movie.id, title: movie.title };
+async function shows(arr: Arr, reserve: number, restore: boolean, attempt: Attempt): Promise<void> {
+  // Safety: never act on a dead mount. Every library folder the Arr uses must be there before anything changes
+  await PathsService.verify((await ArrService.roots(arr)).map((root) => PathsService.map(arr, root)));
+  const series = await ArrService.series(arr);
+
+  // Tidy up first, matching a removed series' copies to a series added back by its folder, then read pins and copies
+  const folders = series.map((s) => ({ id: s.id, folder: PathsService.map(arr, s.path) }));
+  await tidy(arr, series, (copy) => folders.find((f) => PathsService.within(f.folder, copy.path))?.id);
+  const pinned = PinsService.list(arr.id);
+  const seasons = PinsService.seasons(arr.id);
+  const copies = CopiesService.list(arr.id);
+
+  // Only look at the files of series with something to do: pinned, or holding copies
+  const busy = series.filter((s) => pinned.has(s.id) || seasons.has(s.id) || copies.some((c) => c.media === s.id));
+  const files = new Map(
+    await Promise.all(busy.map(async (s) => [s.id, await LibraryService.episodes(arr, s)] as const)),
+  );
+
+  // Whether the mount looks up: some link among those files can be followed, or some copy's original link target still
+  // can be, which proves the mount is there even when every file examined is local
+  const mounted = [...files.values()].flat().some((e) => e.state === "streamed" || e.restorable);
+
+  for (const show of busy) {
+    const wanted = (season: number) => pinned.has(show.id) || !!seasons.get(show.id)?.has(season);
+    const episodes = files.get(show.id)!;
+
+    // Copy each wanted episode that's still streamed, then have Sonarr look at the series' files once
+    let copied = false;
+    for (const episode of episodes.filter((e) => wanted(e.season) && e.state === "streamed")) {
+      const target = { media: show.id, season: episode.season, title: episode.name.replace(/\.[^.]+$/, "") };
+      await attempt({ arr: arr.name, title: target.title, path: episode.path }, async () => {
+        await copy(arr, target, episode.path, reserve);
+        copied = true;
+      });
+    }
+    if (copied) await attempt({ arr: arr.name, title: show.title }, () => ArrService.rescan(arr, show.id));
+
+    // Undo copies of seasons that are no longer pinned, one season at a time, so a re-grab only searches that season
+    const paths = new Set(episodes.map((e) => e.path));
+    const owned = copies.filter((c) => c.media === show.id && paths.has(c.path) && !wanted(c.season ?? -1));
+    for (const season of new Set(owned.map((c) => c.season ?? -1))) {
+      const target = { media: show.id, season, title: `${show.title} · ${season ? `Season ${season}` : "Specials"}` };
+      const group = owned.filter((c) => (c.season ?? -1) === season);
+      await attempt({ arr: arr.name, title: target.title }, () => release(arr, target, group, restore, mounted));
+    }
+
+    // Forget copies of episode files Sonarr no longer has (deleted, or replaced by an upgrade) once they're gone
+    for (const copy of copies.filter((c) => c.media === show.id && !paths.has(c.path))) {
+      if ((await FilesService.check(copy)) !== "copy") CopiesService.remove(copy.path);
+    }
+  }
+}
+
+/**
+ * Tidies up after titles an Arr no longer lists. A title removed and added back gets a new id, so its copies and pins
+ * follow it there (`readded` finds it from a copy's path). Copies whose files are already gone are forgotten, and so
+ * are pins for gone titles with no copy left waiting for the user to keep or delete.
+ */
+async function tidy(arr: Arr, titles: { id: number }[], readded: (copy: Copy) => number | undefined): Promise<void> {
+  // Safety: never act because data is missing. An empty list from the Arr is no proof anything's gone
+  if (!titles.length) return;
+  const listed = new Set(titles.map((t) => t.id));
+
+  // Move each copy of a gone title to the title added back in its place, or forget it if its file has gone too
+  for (const copy of CopiesService.list(arr.id).filter((c) => !listed.has(c.media))) {
+    const id = readded(copy);
+    if (id !== undefined) {
+      CopiesService.add({ ...copy, media: id });
+      PinsService.move(arr.id, copy.media, id);
+    } else if ((await FilesService.check(copy)) !== "copy") CopiesService.remove(copy.path);
+  }
+
+  // Forget pins for gone titles, unless one of their copies is still waiting for the user
+  const waiting = new Set(CopiesService.list(arr.id).map((c) => c.media));
+  for (const media of new Set([...PinsService.list(arr.id), ...PinsService.seasons(arr.id).keys()])) {
+    if (!listed.has(media) && !waiting.has(media)) PinsService.forget(arr.id, media);
+  }
+}
+
+/**
+ * Turns one streamed link into a local copy, and records the copy straight away: from then on, that record is the only
+ * thing that lets Tetharr delete the file. The caller lets the Arr know.
+ */
+async function copy(arr: Arr, target: Target, path: string, reserve: number): Promise<void> {
+  current = { action: "copying", arr: arr.id, ...target, path };
+  LogService.info("copying", { arr: arr.name, title: target.title, path });
+  const { size, target: link } = await FilesService.copy(path, reserve);
+  CopiesService.add({ path, arr: arr.id, media: target.media, season: target.season, target: link, size });
+  LogService.info("copied", { arr: arr.name, title: target.title, path, size });
+}
+
+/**
+ * Undoes Tetharr's copies of a title (or one season of a series) that's no longer pinned. Each copy's link is put back
+ * if its streamed file can still be reached. Otherwise the copy is deleted and the Arr downloads it again, searching
+ * just that season for a series.
+ */
+async function release(arr: Arr, target: Target, copies: Copy[], restore: boolean, mounted: boolean): Promise<void> {
+  current = { action: "restoring", arr: arr.id, ...target, path: null };
   const restored: Copy[] = [];
   const removed: Copy[] = [];
   const forget: Copy[] = [];
@@ -186,35 +278,37 @@ async function release(arr: Arr, movie: Entry, copies: Copy[], restore: boolean,
   for (const copy of copies) {
     const check = await FilesService.check(copy);
 
-    // Already a link again, or replaced by some other file: either way it's no longer Tetharr's to touch Safety: never
-    // delete a file Tetharr didn't create. A replaced file is left alone and simply forgotten
+    // Safety: never delete a file Tetharr didn't create. A copy that's a link again, or replaced by another file, is no
+    // longer Tetharr's to touch, so it's left alone and simply forgotten
     if (check === "link" || check === "replaced") forget.push(copy);
     // Deleted on an earlier pass whose re-grab request failed, so ask again
     else if (check === "missing") removed.push(copy);
     // Put the link back, if its streamed file can still be reached
     else if (restore && (await FilesService.restorable(copy))) {
+      current = { ...current, path: copy.path };
       await FilesService.restore(copy);
       restored.push(copy);
-      LogService.info("restored", { arr: arr.name, title: movie.title, path: copy.path });
+      LogService.info("restored", { arr: arr.name, title: target.title, path: copy.path });
     } else {
-      // Safety: never act on a dead mount. Only delete and re-grab when other streamed links in the library still work
-      if (restore && !mounted)
-        throw new Error(`Can't unpin ${movie.title} yet: its streamed file is unreachable and the mount looks down`);
-      current = { ...current, action: "regrabbing" };
+      // Safety: never act on a dead mount. Only delete and re-grab when the mount is known to be up
+      if (restore && !mounted) {
+        throw new Error(`Can't unpin ${target.title} yet: its streamed file is unreachable and the mount looks down`);
+      }
+      current = { ...current, action: "regrabbing", path: copy.path };
       await FilesService.remove(copy);
       removed.push(copy);
-      LogService.info("removed; missing until Radarr downloads it again", {
+      LogService.info("removed; missing until the Arr downloads it again", {
         arr: arr.name,
-        title: movie.title,
+        title: target.title,
         path: copy.path,
       });
     }
   }
 
-  // Tell Radarr: download it again if a copy was deleted, otherwise just look at the files again
-  if (removed.length) await ArrService.regrab(arr, movie.id);
-  else if (restored.length) await ArrService.rescan(arr, movie.id);
+  // Tell the Arr: download it again if a copy was deleted, otherwise just look at the files again
+  if (removed.length) await ArrService.regrab(arr, target.media, target.season ?? undefined);
+  else if (restored.length) await ArrService.rescan(arr, target.media);
 
-  // Forget the copies only once Radarr has been told, so a failed request is tried again on the next pass
+  // Forget the copies only once the Arr has been told, so a failed request is tried again on the next pass
   for (const copy of [...restored, ...removed, ...forget]) CopiesService.remove(copy.path);
 }

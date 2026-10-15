@@ -6,6 +6,7 @@
 
 import {
   PhArrowClockwise,
+  PhCircleHalf,
   PhClock,
   PhCloud,
   PhCopySimple,
@@ -18,7 +19,17 @@ import {
 import { computed } from "vue";
 
 type Badge =
-  "streamed" | "local" | "unmanaged" | "broken" | "unseen" | "none" | "queued" | "copying" | "restoring" | "regrabbing";
+  | "streamed"
+  | "local"
+  | "partial"
+  | "unmanaged"
+  | "broken"
+  | "unseen"
+  | "none"
+  | "queued"
+  | "copying"
+  | "restoring"
+  | "regrabbing";
 
 const props = defineProps<{ state: Badge; detail?: string | undefined; path?: string | undefined }>();
 
@@ -26,6 +37,12 @@ const props = defineProps<{ state: Badge; detail?: string | undefined; path?: st
 const STATES = {
   streamed: { label: "Streamed", tone: "badge-info", icon: PhCloud, hint: "A link to the usenet copy" },
   local: { label: "Local", tone: "badge-success", icon: PhHardDrive, hint: "A local copy Tetharr made" },
+  partial: {
+    label: "Partly local",
+    tone: "badge-success",
+    icon: PhCircleHalf,
+    hint: "Some files are local copies, and the rest are streamed",
+  },
   unmanaged: {
     label: "Local · unmanaged",
     tone: "badge-success",

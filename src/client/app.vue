@@ -1,17 +1,20 @@
 <script setup lang="ts">
 /**
  * The frame around every page. On larger screens a sidebar holds the brand, the navigation, and what the worker is
- * doing. On phones the brand sits at the top and the navigation becomes a tab bar along the bottom.
+ * doing, including any problems it hit. On phones the brand sits at the top, the worker's problems at the top of the
+ * page, and the navigation becomes a tab bar along the bottom.
  */
 
-import { PhFilmStrip, PhGearSix } from "@phosphor-icons/vue";
+import { PhFilmStrip, PhGearSix, PhTelevisionSimple } from "@phosphor-icons/vue";
 import ActivityComponent from "./components/activity.vue";
 import BrandComponent from "./components/brand.vue";
 import ConfirmDialogComponent from "./components/confirm-dialog.vue";
+import WorkerProblemsComponent from "./components/worker-problems.vue";
 
 // The pages in the navigation, with their icons
 const PAGES = [
   { to: "/movies", label: "Movies", icon: PhFilmStrip },
+  { to: "/series", label: "Series", icon: PhTelevisionSimple },
   { to: "/settings", label: "Settings", icon: PhGearSix },
 ];
 </script>
@@ -35,7 +38,10 @@ const PAGES = [
           {{ page.label }}
         </RouterLink>
       </nav>
-      <ActivityComponent class="mt-auto" />
+      <div class="mt-auto flex flex-col gap-4">
+        <WorkerProblemsComponent compact />
+        <ActivityComponent />
+      </div>
     </aside>
 
     <div class="flex min-w-0 flex-1 flex-col">
@@ -44,6 +50,7 @@ const PAGES = [
       </header>
       <main class="w-full flex-1 px-4 pt-6 pb-24 sm:px-6 lg:px-10 lg:pt-8 lg:pb-10">
         <div class="mx-auto max-w-7xl">
+          <WorkerProblemsComponent class="mb-4 lg:hidden" />
           <RouterView />
         </div>
       </main>

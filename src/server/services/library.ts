@@ -1,11 +1,12 @@
 /**
- * Builds the library: what each Arr reports, combined with what is actually on disk, what the user has pinned, and
- * which local files are Tetharr's own copies. The web interface shows it, and the worker acts on it.
+ * Builds the library, for movies and series: what each Arr reports, combined with what is actually on disk, what the
+ * user has pinned, and which local files are Tetharr's own copies. The web interface shows it, and the worker acts on
+ * it.
  */
 
 import type { Arr } from "../../schemas/arr.ts";
 import * as ArrService from "./arr.ts";
-import type { Movie } from "./arr.ts";
+import type { Movie, Series } from "./arr.ts";
 import * as CopiesService from "./copies.ts";
 import * as FilesService from "./files.ts";
 import type { State } from "./files.ts";
@@ -29,8 +30,8 @@ export interface Entry extends Movie {
 }
 
 /**
- * A copy Tetharr made of a movie that Radarr no longer lists, whose file is still on disk. Tetharr leaves these alone
- * until the user decides to keep or delete them.
+ * A copy Tetharr made of a title its Arr no longer lists, whose file is still there. Tetharr leaves these alone until
+ * the user decides to keep or delete them.
  */
 export interface Orphan {
   arr: string;
@@ -58,16 +59,14 @@ export async function entries(arr: Arr): Promise<Entry[]> {
 }
 
 /**
- * Tetharr's copies of movies one Radarr no longer lists, whose files are still there.
+ * Tetharr's copies, for one Arr, of titles it no longer lists, whose files are still there. `claimed` says whether a
+ * copy still belongs to a listed title, such as one removed and added again with a new id.
  */
-async function orphans(arr: Arr, movies: Entry[]): Promise<Orphan[]> {
-  // Safety: never act because data is missing. An empty list from Radarr says nothing about which titles are gone
-  if (!movies.length) return [];
-  // A copy at a listed movie's path belongs to that movie, even if the movie was removed and added again with a new id
-  const listed = new Set(movies.map((m) => m.id));
-  const paths = new Set(movies.map((m) => m.path));
+async function orphans(arr: Arr, listed: number, claimed: (path: string) => boolean): Promise<Orphan[]> {
+  // Safety: never act because data is missing. An empty list from the Arr says nothing about which titles are gone
+  if (!listed) return [];
   const found: Orphan[] = [];
-  for (const copy of CopiesService.list(arr.id).filter((c) => !listed.has(c.media) && !paths.has(c.path))) {
+  for (const copy of CopiesService.list(arr.id).filter((c) => !claimed(c.path))) {
     if ((await FilesService.check(copy)) === "copy") found.push({ arr: arr.name, path: copy.path, size: copy.size });
   }
   return found;
@@ -86,12 +85,106 @@ export async function movies(): Promise<{ movies: Entry[]; orphans: Orphan[]; er
   for (const arr of SettingsService.arrs().filter((a) => a.type === "radarr")) {
     try {
       const listed = await entries(arr);
+      const paths = new Set(listed.map((m) => m.path));
       movies.push(...listed);
-      found.push(...(await orphans(arr, listed)));
+      found.push(...(await orphans(arr, listed.length, (path) => paths.has(path))));
     } catch (err) {
       errors.push((err as Error).message);
       LogService.error((err as Error).message, { arr: arr.name });
     }
   }
   return { movies, orphans: found, errors };
+}
+
+/**
+ * A series in the grid: which Sonarr it came from, whether it's pinned as a whole, which seasons are pinned on their
+ * own, and how many of its episode files are local copies Tetharr made. File states aren't checked here, since that
+ * means a request per series; the series' own page checks them.
+ */
+export interface Show extends Series {
+  arr: number;
+  pinned: boolean;
+  seasonsPinned: number[];
+  copies: number;
+}
+
+/**
+ * One episode file: where Tetharr sees it, what it is right now, and whether it's a copy Tetharr made (and if so,
+ * whether unpinning can simply put its link back). `name` is the file's name, which Sonarr fills with the episode.
+ */
+export interface EpisodeFile {
+  id: number;
+  season: number;
+  name: string;
+  size: number;
+  path: string;
+  state: State;
+  managed: boolean;
+  restorable: boolean;
+}
+
+/**
+ * Every series in one Sonarr, for the grid.
+ */
+export async function shows(arr: Arr): Promise<Show[]> {
+  const pinned = PinsService.list(arr.id);
+  const seasons = PinsService.seasons(arr.id);
+  const copies = CopiesService.list(arr.id);
+  return (await ArrService.series(arr)).map((series) => ({
+    ...series,
+    arr: arr.id,
+    pinned: pinned.has(series.id),
+    seasonsPinned: [...(seasons.get(series.id) ?? [])],
+    copies: copies.filter((c) => c.media === series.id).length,
+  }));
+}
+
+/**
+ * Every episode file in one series, with where it lives right now.
+ */
+export async function episodes(arr: Arr, series: Series): Promise<EpisodeFile[]> {
+  const copies = new Map(CopiesService.list(arr.id).map((c) => [c.path, c]));
+
+  // Translate each file's path into Tetharr's view, then look at what's there
+  return Promise.all(
+    (await ArrService.episodes(arr, series.id)).map(async ({ id, season, file, size }) => {
+      const path = PathsService.map(arr, file);
+      const copy = copies.get(path);
+      const restorable = !!copy && (await FilesService.restorable(copy));
+      const name = file.split("/").at(-1)!;
+      return { id, season, name, size, path, state: await FilesService.state(path), managed: !!copy, restorable };
+    }),
+  );
+}
+
+/**
+ * Every series from every Sonarr, plus copies of series that are no longer in Sonarr. A Sonarr that can't be reached is
+ * listed in `errors` instead.
+ */
+export async function series(): Promise<{ series: Show[]; orphans: Orphan[]; errors: string[] }> {
+  const found: Show[] = [];
+  const left: Orphan[] = [];
+  const errors: string[] = [];
+
+  // Go through each Sonarr in turn. Safety: one that can't be reached is reported, never treated as empty
+  for (const arr of SettingsService.arrs().filter((a) => a.type === "sonarr")) {
+    try {
+      const listed = await shows(arr);
+      const folders = listed.map((s) => PathsService.map(arr, s.path));
+      found.push(...listed);
+      left.push(...(await orphans(arr, listed.length, (path) => folders.some((f) => PathsService.within(f, path)))));
+    } catch (err) {
+      errors.push((err as Error).message);
+      LogService.error((err as Error).message, { arr: arr.name });
+    }
+  }
+  return { series: found, orphans: left, errors };
+}
+
+/**
+ * One series with every episode file, for its own page. Nothing is returned if the Sonarr no longer has it.
+ */
+export async function show(arr: Arr, id: number): Promise<(Show & { entries: EpisodeFile[] }) | undefined> {
+  const series = (await shows(arr)).find((s) => s.id === id);
+  return series && { ...series, entries: await episodes(arr, series) };
 }

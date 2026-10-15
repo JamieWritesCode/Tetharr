@@ -5,32 +5,24 @@
  * streams it again. Filters along the top narrow the list down, and the search box finds titles.
  */
 
-import {
-  PhCheck,
-  PhFilmSlate,
-  PhMagnifyingGlass,
-  PhPlugs,
-  PhPushPin,
-  PhTrash,
-  PhWarningCircle,
-} from "@phosphor-icons/vue";
+import { PhMagnifyingGlass, PhPlugs } from "@phosphor-icons/vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import EmptyStateComponent from "../components/empty-state.vue";
+import OrphansComponent from "../components/orphans.vue";
 import PageHeaderComponent from "../components/page-header.vue";
-import SectionCardComponent from "../components/section-card.vue";
+import PosterCardComponent from "../components/poster-card.vue";
+import ProblemsComponent from "../components/problems.vue";
 import StateBadgeComponent from "../components/state-badge.vue";
 import { size } from "../format.ts";
 import * as ActivityService from "../services/activity.ts";
 import * as ConfirmService from "../services/confirm.ts";
-import * as CopiesService from "../services/copies.ts";
 import * as MoviesService from "../services/movies.ts";
 import * as SettingsService from "../services/settings.ts";
 
 const { data, isPending, error } = MoviesService.useList();
 const { data: activity } = ActivityService.useStatus();
 const { mutate: pin, error: pinError } = MoviesService.usePin();
-const { mutate: resolve, error: resolveError } = CopiesService.useResolve();
 const { data: options } = SettingsService.useOptions();
 const cache = useQueryClient();
 const search = ref("");
@@ -64,24 +56,6 @@ const movies = computed(() => {
   const test = FILTERS.find((f) => f.key === filter.value)!.test;
   const term = search.value.trim().toLowerCase();
   return (data.value?.movies ?? []).filter((m) => test(m) && m.title.toLowerCase().includes(term));
-});
-
-// Problems the worker hit on its last pass, and problems loading the library just now that the worker didn't also hit
-const worker = computed(() => activity.value?.errors ?? []);
-const loading = computed(() => (data.value?.errors ?? []).filter((e) => !worker.value.includes(e)));
-
-// The time now, updated every second, so the countdown to the worker's next try stays live
-const now = ref(Date.now());
-const tick = setInterval(() => (now.value = Date.now()), 1000);
-onUnmounted(() => clearInterval(tick));
-
-// When the worker will try again, counting down, so a passing problem is visibly about to be rechecked
-const retry = computed(() => {
-  const next = activity.value?.next;
-  if (!next) return;
-  const seconds = Math.max(0, Math.round((Date.parse(next) - now.value) / 1000));
-  if (!seconds) return "Trying again now";
-  return `Trying again in ${seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`}`;
 });
 
 /**
@@ -133,34 +107,6 @@ async function toggle(movie: Movie) {
   }
   pin({ arr: movie.arr, id: movie.id, pinned: !movie.pinned });
 }
-
-/**
- * Keeps or deletes a copy of a movie Radarr no longer lists, after the user confirms what that means.
- */
-async function settle(orphan: { arr: string; path: string; size: number }, action: "keep" | "delete") {
-  const name = orphan.path.split("/").at(-2);
-  const choice = await ConfirmService.ask(
-    action === "keep"
-      ? {
-          title: `Keep ${name}?`,
-          consequences: [
-            { tone: "info", text: "The file stays where it is, as an unmanaged local file." },
-            { tone: "info", text: "Tetharr forgets it, and will never change or delete it." },
-          ],
-          choices: [{ value: "keep", label: "Keep the file" }],
-        }
-      : {
-          title: `Delete ${name}?`,
-          steps: [`Delete Tetharr's copy (${size(orphan.size)})`],
-          consequences: [
-            { tone: "error", text: `${orphan.arr} no longer lists this movie, so nothing will download it again.` },
-            { tone: "success", text: `${size(orphan.size)} of local space is freed.` },
-          ],
-          choices: [{ value: "delete", label: "Delete the copy", tone: "error" }],
-        },
-  );
-  if (choice) resolve({ path: orphan.path, action });
-}
 </script>
 
 <template>
@@ -171,56 +117,10 @@ async function settle(orphan: { arr: string; path: string; size: number }, actio
     </label>
   </PageHeaderComponent>
 
-  <!-- Problems from the Arrs and the worker. A Radarr that can't be reached has its movies missing, not gone -->
-  <div class="mb-4 flex flex-col gap-2 empty:hidden">
-    <!-- The countdown sits at the far right on larger screens, and under the message on phones -->
-    <div
-      v-for="message in worker"
-      :key="message"
-      role="alert"
-      class="alert alert-soft alert-error max-sm:grid-flow-row max-sm:grid-cols-[auto_1fr]"
-    >
-      <PhWarningCircle class="size-5" />
-      <span>{{ message }}</span>
-      <span v-if="retry" class="text-xs whitespace-nowrap opacity-70 max-sm:col-start-2">{{ retry }}</span>
-    </div>
-    <div v-for="message in loading" :key="message" role="alert" class="alert alert-soft alert-error">
-      <PhWarningCircle class="size-5" />{{ message }}
-    </div>
-    <div
-      v-for="err in [error, pinError, resolveError].filter(Boolean)"
-      :key="err!.message"
-      role="alert"
-      class="alert alert-soft alert-error"
-    >
-      <PhWarningCircle class="size-5" />{{ err!.message }}
-    </div>
-  </div>
+  <!-- A Radarr that can't be reached has its movies missing from the list, not gone -->
+  <ProblemsComponent :errors="[...(data?.errors ?? []), error?.message, pinError?.message]" />
 
-  <!-- Copies of movies Radarr no longer lists. Tetharr leaves them alone until the user decides -->
-  <SectionCardComponent
-    v-if="data?.orphans.length"
-    class="mb-5"
-    title="Copies of movies no longer in Radarr"
-    description="Tetharr made these copies, but the movies have since been removed from Radarr. Keep or delete each one."
-  >
-    <ul class="divide-y divide-base-300">
-      <li v-for="orphan in data.orphans" :key="orphan.path" class="flex flex-wrap items-center gap-4 px-5 py-3">
-        <div class="min-w-0 flex-1">
-          <p class="truncate font-medium">{{ orphan.path.split("/").at(-2) }}</p>
-          <p class="truncate font-mono text-xs text-base-content/60">{{ orphan.path }} · {{ size(orphan.size) }}</p>
-        </div>
-        <div class="flex gap-2">
-          <button type="button" class="btn btn-ghost btn-sm" @click="settle(orphan, 'keep')">
-            <PhCheck class="size-4" />Keep
-          </button>
-          <button type="button" class="btn btn-ghost text-error btn-sm" @click="settle(orphan, 'delete')">
-            <PhTrash class="size-4" />Delete
-          </button>
-        </div>
-      </li>
-    </ul>
-  </SectionCardComponent>
+  <OrphansComponent v-if="data" :orphans="data.orphans" kind="movies" class="mb-5" />
 
   <div v-if="isPending" class="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-4">
     <div v-for="i in 12" :key="i" class="card overflow-hidden bg-base-100 card-border">
@@ -261,47 +161,18 @@ async function settle(orphan: { arr: string; path: string; size: number }, actio
     </EmptyStateComponent>
 
     <ul v-else class="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-4">
-      <li
+      <PosterCardComponent
         v-for="movie in movies"
         :key="`${movie.arr}-${movie.id}`"
-        class="group card overflow-hidden bg-base-100 transition-colors card-border hover:border-primary/50"
+        :title="movie.title"
+        :poster="movie.poster"
+        :details="movie.size ? `${movie.year} · ${size(movie.size)}` : String(movie.year)"
+        :pinned="movie.pinned"
+        :pinnable="pinnable(movie)"
+        @pin="toggle(movie)"
       >
-        <figure class="relative grid aspect-2/3 place-items-center bg-base-300">
-          <img
-            v-if="movie.poster"
-            :src="movie.poster"
-            :alt="movie.title"
-            loading="lazy"
-            class="size-full object-cover"
-          />
-          <PhFilmSlate v-else class="size-10 text-base-content/30" />
-
-          <!-- The pin button: always shown once pinned, otherwise on hover (and always on touch screens) -->
-          <button
-            v-if="pinnable(movie)"
-            type="button"
-            class="btn absolute top-2 right-2 btn-circle transition-opacity btn-sm"
-            :class="
-              movie.pinned
-                ? 'btn-primary'
-                : 'border-base-300 bg-base-100/90 backdrop-blur-sm group-hover:opacity-100 focus-visible:opacity-100 lg:opacity-0'
-            "
-            :aria-pressed="movie.pinned"
-            :aria-label="movie.pinned ? `Unpin ${movie.title}` : `Pin ${movie.title}`"
-            :title="movie.pinned ? 'Unpin: free up the space and stream it again' : 'Pin: keep a local copy'"
-            @click="toggle(movie)"
-          >
-            <PhPushPin :weight="movie.pinned ? 'fill' : 'bold'" class="size-4" />
-          </button>
-        </figure>
-        <div class="card-body gap-1.5 p-3">
-          <h2 class="truncate text-sm font-semibold" :title="movie.title">{{ movie.title }}</h2>
-          <p class="font-mono text-xs text-base-content/60">
-            {{ movie.year }}<template v-if="movie.size"> · {{ size(movie.size) }}</template>
-          </p>
-          <StateBadgeComponent v-bind="badge(movie)" :path="movie.path" class="mt-1" />
-        </div>
-      </li>
+        <StateBadgeComponent v-bind="badge(movie)" :path="movie.path" />
+      </PosterCardComponent>
     </ul>
   </template>
 </template>

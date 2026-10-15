@@ -9,6 +9,7 @@ import * as ActivityRoutes from "./routes/activity/index.ts";
 import * as ArrRoutes from "./routes/arrs/index.ts";
 import * as CopyRoutes from "./routes/copies/index.ts";
 import * as MovieRoutes from "./routes/movies/index.ts";
+import * as SeriesRoutes from "./routes/series/index.ts";
 import * as SettingsRoutes from "./routes/settings/index.ts";
 import * as LogService from "./services/log.ts";
 
@@ -29,6 +30,12 @@ export const app = new Hono()
   .get("/movies", ...MovieRoutes.list)
   .put("/movies/:arr/:id/pin", ...MovieRoutes.pin)
   .delete("/movies/:arr/:id/pin", ...MovieRoutes.unpin)
+  .get("/series", ...SeriesRoutes.list)
+  .get("/series/:arr/:id", ...SeriesRoutes.show)
+  .put("/series/:arr/:id/pin", ...SeriesRoutes.pin)
+  .delete("/series/:arr/:id/pin", ...SeriesRoutes.unpin)
+  .put("/series/:arr/:id/seasons/:season/pin", ...SeriesRoutes.pin)
+  .delete("/series/:arr/:id/seasons/:season/pin", ...SeriesRoutes.unpin)
   .post("/copies/resolve", ...CopyRoutes.resolve)
   .get("/activity", ...ActivityRoutes.status)
   .get("/settings", ...SettingsRoutes.options)

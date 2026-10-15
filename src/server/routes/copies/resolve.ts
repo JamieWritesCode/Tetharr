@@ -7,7 +7,7 @@ import * as HttpService from "../../services/http.ts";
 import * as SettingsService from "../../services/settings.ts";
 
 /**
- * Settles a copy of a movie the Arr no longer lists. "keep" leaves the file where it is and forgets it, so it becomes
+ * Settles a copy of a title the Arr no longer lists. "keep" leaves the file where it is and forgets it, so it becomes
  * an unmanaged local file. "delete" deletes it. Either way Tetharr stops tracking it.
  */
 export const resolve = HttpService.handlers(
@@ -18,10 +18,11 @@ export const resolve = HttpService.handlers(
     if (!copy) throw new HTTPException(404, { message: "Tetharr has no copy at that path" });
 
     if (action === "delete") {
-      // Only for movies the Arr no longer lists: deleting a listed one's copy would leave it missing without a re-grab
+      // Only for titles the Arr no longer lists: deleting a listed one's copy would leave it missing without a re-grab
       const arr = SettingsService.arrs().find((a) => a.id === copy.arr);
-      if (arr && (await ArrService.movies(arr)).some((m) => m.id === copy.media)) {
-        throw new HTTPException(409, { message: `${arr.name} still lists this movie. Unpin it instead` });
+      const titles = arr && (arr.type === "radarr" ? await ArrService.movies(arr) : await ArrService.series(arr));
+      if (arr && titles?.some((t) => t.id === copy.media)) {
+        throw new HTTPException(409, { message: `${arr.name} still lists this title. Unpin it instead` });
       }
 
       // Safety: never delete a file Tetharr didn't create. Only a file that still matches the recorded copy is deleted
