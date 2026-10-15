@@ -113,7 +113,8 @@ src/
     worker.ts         the flow: one idempotent pass that makes the files match the pins
     routes/<module>/  one handler per file, plus an index.ts barrel per module
     services/         one file per external system or domain boundary: arr (the Arr API), files (copy, restore,
-                      delete), paths, library, db (migrations), settings, pins, copies, http, log
+                      delete), paths, library, checks (can a connection see its library?), db (migrations), settings,
+                      pins, copies, http, log
   client/
     main.ts           boot: router, query cache, styles
     app.vue           the frame around every page
