@@ -1,0 +1,53 @@
+{
+  "name": "tetharr",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Choose which Radarr/Sonarr titles live on local disk and which stream from usenet symlinks",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0 <25",
+    "npm": ">=11.19.0"
+  },
+  "scripts": {
+    "dev": "node dev/run.ts",
+    "dev:down": "node dev/run.ts down",
+    "dev:reset": "node dev/run.ts reset",
+    "dev:outage": "node dev/run.ts outage",
+    "dev:restore": "node dev/run.ts restore",
+    "dev:regrab": "node dev/run.ts regrab",
+    "build": "vite build",
+    "start": "node src/server/index.ts",
+    "image": "docker build --platform linux/amd64 --push -t ${IMAGE:-ghcr.io/jamiewritescode/tetharr:dev} .",
+    "typecheck": "tsc --noEmit && vue-tsc --noEmit -p src/client",
+    "format": "prettier --write .",
+    "deps:check": "npm outdated"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@hono/zod-validator": "0.9.1",
+    "hono": "4.13.9",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@phosphor-icons/vue": "2.2.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/vue-query": "5.103.2",
+    "@types/node": "24.13.6",
+    "@vitejs/plugin-vue": "6.0.9",
+    "daisyui": "5.7.46",
+    "prettier": "3.9.9",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.1",
+    "vue": "3.5.43",
+    "vue-router": "5.3.1",
+    "vue-tsc": "3.3.11"
+  },
+  "allowScripts": {
+    "vue-demi@0.14.10": true
+  }
+}

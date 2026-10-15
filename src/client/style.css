@@ -1,0 +1,143 @@
+/*
+ * Tetharr's look. Tailwind handles layout, daisyUI handles components, and both read the same design tokens: the fonts
+ * below, and the colours and shapes in the two Tetharr themes. The theme follows the system's light or dark setting
+ * unless the user picks one in Settings.
+ */
+
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* Only Tetharr's own themes, none of daisyUI's built-in ones */
+@plugin "daisyui" {
+  themes: false;
+}
+
+/*
+ * Geist for the interface, Geist Mono for paths, sizes, versions and keys. Radarr's and Sonarr's own colours are only
+ * for labelling which kind of Arr something is, never for anything else in the interface.
+ */
+@theme {
+  --color-radarr: #ffc230;
+  --color-sonarr: #35c5f4;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+/* The main theme: dark greys tinted very slightly towards the teal primary, so the two sit together */
+@plugin "daisyui/theme" {
+  name: "tetharr-dark";
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: oklch(22% 0.009 190);
+  --color-base-200: oklch(18.5% 0.008 190);
+  --color-base-300: oklch(28% 0.011 190);
+  --color-base-content: oklch(94% 0.004 190);
+  --color-primary: oklch(74% 0.13 182);
+  --color-primary-content: oklch(18% 0.03 185);
+  --color-secondary: oklch(32% 0.011 190);
+  --color-secondary-content: oklch(92% 0.004 190);
+  --color-accent: oklch(82% 0.1 182);
+  --color-accent-content: oklch(20% 0.03 185);
+  --color-neutral: oklch(30% 0.011 190);
+  --color-neutral-content: oklch(92% 0.004 190);
+  --color-info: oklch(72% 0.12 235);
+  --color-info-content: oklch(20% 0.04 235);
+  --color-success: oklch(74% 0.15 152);
+  --color-success-content: oklch(20% 0.04 152);
+  --color-warning: oklch(82% 0.14 78);
+  --color-warning-content: oklch(22% 0.05 78);
+  --color-error: oklch(68% 0.19 22);
+  --color-error-content: oklch(98% 0.01 22);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* The light theme: white cards on a faintly teal-tinted grey page, with a deeper teal so text on it stays readable */
+@plugin "daisyui/theme" {
+  name: "tetharr-light";
+  default: true;
+  color-scheme: light;
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(97.6% 0.004 190);
+  --color-base-300: oklch(92.5% 0.007 190);
+  --color-base-content: oklch(24% 0.012 200);
+  --color-primary: oklch(58% 0.11 184);
+  --color-primary-content: oklch(99% 0.01 184);
+  --color-secondary: oklch(94.5% 0.005 190);
+  --color-secondary-content: oklch(28% 0.012 200);
+  --color-accent: oklch(62% 0.12 182);
+  --color-accent-content: oklch(99% 0.01 182);
+  --color-neutral: oklch(30% 0.012 200);
+  --color-neutral-content: oklch(97% 0.003 190);
+  --color-info: oklch(58% 0.14 240);
+  --color-info-content: oklch(99% 0.01 240);
+  --color-success: oklch(58% 0.14 152);
+  --color-success-content: oklch(99% 0.01 152);
+  --color-warning: oklch(75% 0.15 75);
+  --color-warning-content: oklch(25% 0.05 75);
+  --color-error: oklch(58% 0.2 25);
+  --color-error-content: oklch(99% 0.01 25);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Card borders match the dividers and the sidebar's edge, rather than daisyUI's fainter default */
+.card-border {
+  border-color: var(--color-base-300);
+}
+
+@layer base {
+  body {
+    @apply bg-base-200 text-base-content antialiased;
+  }
+}
+
+/*
+ * Focused fields, and selects while their list is open, get a teal border and nothing else: no outline or glow, to
+ * keep the design flat. Fields showing an error keep their red. `:is()` lets browsers that don't know `:open` still
+ * apply the rest.
+ */
+.input,
+.select,
+.textarea {
+  &:is(:focus, :focus-within, :open) {
+    outline: none;
+    &:not(.input-error, .select-error, .textarea-error) {
+      --input-color: var(--color-primary);
+    }
+  }
+}
+
+/*
+ * Icon tiles for the kind of Arr, tinted with its own colour. The icon is mixed towards the normal text colour so it
+ * stays clear on both themes.
+ */
+.arr-radarr,
+.arr-sonarr {
+  background-color: color-mix(in oklab, var(--arr) 18%, transparent);
+  color: color-mix(in oklab, var(--arr) 60%, var(--color-base-content));
+}
+.arr-radarr {
+  --arr: var(--color-radarr);
+}
+.arr-sonarr {
+  --arr: var(--color-sonarr);
+}
+
+/* A select's open list gets the same border as cards */
+.select::picker(select) {
+  border-color: var(--color-base-300);
+}
