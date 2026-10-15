@@ -59,7 +59,13 @@ const TITLES = [
     arr: SONARR,
     id: 73545,
     folder: "Battlestar Galactica (2003)",
-    files: ["Season 01/Battlestar Galactica - S01E01 - 33.mkv", "Season 01/Battlestar Galactica - S01E02 - Water.mkv"],
+    // Two seasons of files, so pinning one season leaves the series partly local
+    files: [
+      "Season 01/Battlestar Galactica - S01E01 - 33.mkv",
+      "Season 01/Battlestar Galactica - S01E02 - Water.mkv",
+      "Season 02/Battlestar Galactica - S02E01 - Scattered.mkv",
+      "Season 02/Battlestar Galactica - S02E02 - Valley of Darkness.mkv",
+    ],
   },
 ];
 type Title = (typeof TITLES)[number];

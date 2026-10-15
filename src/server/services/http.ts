@@ -27,10 +27,16 @@ export const valid = <T extends z.ZodType, K extends "json" | "param" | "query">
  */
 export const id = valid("param", z.object({ id: z.coerce.number().int().positive() }));
 
+// The Arr's id, then the title's id in that Arr
+const ids = { arr: z.coerce.number().int().positive(), id: z.coerce.number().int().positive() };
+
 /**
  * Reads which title an address like /api/movies/1/42 means: the Arr's id, then the title's id in that Arr.
  */
-export const title = valid(
-  "param",
-  z.object({ arr: z.coerce.number().int().positive(), id: z.coerce.number().int().positive() }),
-);
+export const title = valid("param", z.object(ids));
+
+/**
+ * Reads which series, and optionally which season, an address like /api/series/2/7/seasons/1/pin means. Season 0 is a
+ * series' specials.
+ */
+export const season = valid("param", z.object({ ...ids, season: z.coerce.number().int().min(0).optional() }));

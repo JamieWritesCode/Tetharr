@@ -19,6 +19,32 @@ export interface Movie {
   file: string | undefined;
 }
 
+/**
+ * A series as Tetharr cares about it, with each season's file count, episode count and size. `path` is the series'
+ * folder exactly as Sonarr reports it.
+ */
+export interface Series {
+  id: number;
+  title: string;
+  year: number;
+  poster: string | undefined;
+  overview: string;
+  path: string;
+  size: number;
+  files: number;
+  seasons: { number: number; files: number; episodes: number; size: number }[];
+}
+
+/**
+ * One episode file in a series. `file` is its path exactly as Sonarr reports it.
+ */
+export interface Episode {
+  id: number;
+  season: number;
+  file: string;
+  size: number;
+}
+
 interface Status {
   appName: string;
   version: string;
@@ -33,6 +59,20 @@ interface Item {
   movieFile?: { path: string };
 }
 
+interface Show {
+  id: number;
+  title: string;
+  year: number;
+  overview?: string;
+  path: string;
+  images: { coverType: string; remoteUrl?: string }[];
+  statistics: { episodeFileCount: number; sizeOnDisk: number };
+  seasons: {
+    seasonNumber: number;
+    statistics?: { episodeFileCount: number; totalEpisodeCount: number; sizeOnDisk: number };
+  }[];
+}
+
 // The commands Tetharr sends each kind of Arr: rescan a title's files from disk, or search for it to download again
 const COMMANDS = {
   radarr: {
@@ -41,7 +81,10 @@ const COMMANDS = {
   },
   sonarr: {
     rescan: (id: number) => ({ name: "RescanSeries", seriesId: id }),
-    search: (id: number) => ({ name: "SeriesSearch", seriesId: id }),
+    search: (id: number, season?: number) =>
+      season === undefined
+        ? { name: "SeriesSearch", seriesId: id }
+        : { name: "SeasonSearch", seriesId: id, seasonNumber: season },
   },
 };
 
@@ -102,12 +145,12 @@ export const roots = async (arr: Input) => (await request<{ path: string }[]>(ar
  * Sends an Arr a command and waits for it to finish, for up to ten minutes. Waiting matters: a search only grabs a
  * title again once the rescan before it has noticed the file is gone.
  */
-async function command(arr: Input, kind: "rescan" | "search", id: number): Promise<void> {
+async function command(arr: Input, kind: "rescan" | "search", id: number, season?: number): Promise<void> {
   // Send the command, then check on it every second until the Arr says it's done
   let { id: sent, status } = await request<{ id: number; status: string }>(
     arr,
     "command",
-    COMMANDS[arr.type][kind](id),
+    COMMANDS[arr.type][kind](id, season),
   );
   for (let i = 0; status === "queued" || status === "started"; i++) {
     if (i === 600) throw new Error(`${arr.name}: the ${kind} didn't finish within ten minutes`);
@@ -123,9 +166,44 @@ async function command(arr: Input, kind: "rescan" | "search", id: number): Promi
 export const rescan = (arr: Input, id: number) => command(arr, "rescan", id);
 
 /**
- * Has an Arr download a title again: first a rescan so it notices the file is gone, then a search.
+ * Has an Arr download a title again: first a rescan so it notices the file is gone, then a search. Given a season,
+ * Sonarr searches for just that season rather than the whole series.
  */
-export async function regrab(arr: Input, id: number): Promise<void> {
+export async function regrab(arr: Input, id: number, season?: number): Promise<void> {
   await command(arr, "rescan", id);
-  await command(arr, "search", id);
+  await command(arr, "search", id, season);
+}
+
+/**
+ * Every series in a Sonarr, with its seasons.
+ */
+export async function series(arr: Input): Promise<Series[]> {
+  return (await request<Show[]>(arr, "series")).map(
+    ({ id, title, year, overview, path, images, statistics, seasons }) => ({
+      id,
+      title,
+      year,
+      // Ask TheTVDB for the poster at its normal size; Sonarr's own copy would need the API key
+      poster: images.find((i) => i.coverType === "poster")?.remoteUrl,
+      overview: overview ?? "",
+      path,
+      size: statistics.sizeOnDisk,
+      files: statistics.episodeFileCount,
+      seasons: seasons.map(({ seasonNumber, statistics: s }) => ({
+        number: seasonNumber,
+        files: s?.episodeFileCount ?? 0,
+        episodes: s?.totalEpisodeCount ?? 0,
+        size: s?.sizeOnDisk ?? 0,
+      })),
+    }),
+  );
+}
+
+/**
+ * Every episode file Sonarr has for one series.
+ */
+export async function episodes(arr: Input, id: number): Promise<Episode[]> {
+  return (
+    await request<{ id: number; seasonNumber: number; path: string; size: number }[]>(arr, `episodefile?seriesId=${id}`)
+  ).map(({ id, seasonNumber, path, size }) => ({ id, season: seasonNumber, file: path, size }));
 }
