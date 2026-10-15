@@ -14,6 +14,7 @@ import * as LogService from "./services/log.ts";
 import * as PathsService from "./services/paths.ts";
 import * as PinsService from "./services/pins.ts";
 import * as SettingsService from "./services/settings.ts";
+import * as TempsService from "./services/temps.ts";
 
 /**
  * What the worker is doing right now: which title (and season, and file, when it's one file of a series), and whether
@@ -110,6 +111,20 @@ async function pass(): Promise<string[]> {
       LogService.error((err as Error).message, fields);
     }
   };
+
+  // Delete temporary files left by a step that was interrupted, such as by a crash or power cut
+  for (const temp of TempsService.list()) {
+    await attempt({ path: temp }, async () => {
+      const removed = await FilesService.clear(temp);
+      TempsService.remove(temp);
+      LogService.info(
+        removed
+          ? "removed a temporary file left by an interrupted step"
+          : "ignored a record that isn't a temporary file",
+        { path: temp },
+      );
+    });
+  }
 
   // Each Arr in turn. A problem with one is recorded and the rest carry on
   for (const arr of SettingsService.arrs()) {
@@ -259,7 +274,7 @@ async function tidy(arr: Arr, titles: { id: number }[], readded: (copy: Copy) =>
 async function copy(arr: Arr, target: Target, path: string, reserve: number): Promise<void> {
   current = { action: "copying", arr: arr.id, ...target, path };
   LogService.info("copying", { arr: arr.name, title: target.title, path });
-  const { size, target: link } = await FilesService.copy(path, reserve);
+  const { size, target: link } = await writing(FilesService.partial(path), () => FilesService.copy(path, reserve));
   CopiesService.add({ path, arr: arr.id, media: target.media, season: target.season, target: link, size });
   LogService.info("copied", { arr: arr.name, title: target.title, path, size });
 }
@@ -286,7 +301,7 @@ async function release(arr: Arr, target: Target, copies: Copy[], restore: boolea
     // Put the link back, if its streamed file can still be reached
     else if (restore && (await FilesService.restorable(copy))) {
       current = { ...current, path: copy.path };
-      await FilesService.restore(copy);
+      await writing(FilesService.link(copy.path), () => FilesService.restore(copy));
       restored.push(copy);
       LogService.info("restored", { arr: arr.name, title: target.title, path: copy.path });
     } else {
@@ -311,4 +326,17 @@ async function release(arr: Arr, target: Target, copies: Copy[], restore: boolea
 
   // Forget the copies only once the Arr has been told, so a failed request is tried again on the next pass
   for (const copy of [...restored, ...removed, ...forget]) CopiesService.remove(copy.path);
+}
+
+/**
+ * Runs a step that writes a temporary file, recording the file first. If the step is interrupted (a crash or power cut)
+ * the record survives, and the next pass deletes the file.
+ */
+async function writing<T>(temp: string, step: () => Promise<T>): Promise<T> {
+  TempsService.add(temp);
+  try {
+    return await step();
+  } finally {
+    TempsService.remove(temp);
+  }
 }
