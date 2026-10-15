@@ -21,7 +21,18 @@ export type State = "streamed" | "local" | "broken" | "unseen";
 export type Check = "copy" | "link" | "missing" | "replaced";
 
 // The copy being written right now, so its progress can be shown and a shutdown can clean it up
-let active: { partial: string; size: number } | undefined;
+let active: { temp: string; size: number } | undefined;
+
+/**
+ * The hidden name a copy is written under, next to the link it will replace. The dot prefix and non-media extension
+ * keep media scanners away from it.
+ */
+export const partial = (file: string) => path.join(path.dirname(file), `.${path.basename(file)}.partial`);
+
+/**
+ * The hidden name a restored link is made under, before it's swapped over the copy.
+ */
+export const link = (file: string) => path.join(path.dirname(file), `.${path.basename(file)}.link`);
 
 /**
  * Works out the state of one library path.
@@ -56,19 +67,19 @@ export async function copy(link: string, reserve: number): Promise<{ size: numbe
     throw new Error(`Not enough free space in ${dir} to copy ${path.basename(link)}`);
 
   // Copy the file next to the link under a hidden name with no media extension, which media scanners ignore
-  const partial = path.join(dir, `.${path.basename(link)}.partial`);
-  active = { partial, size };
+  const temp = partial(link);
+  active = { temp, size };
   try {
-    await copyFile(link, partial);
+    await copyFile(link, temp);
 
     // Confirm the copy is complete, and that the Arr didn't replace the link while it was copying
-    if ((await stat(partial)).size !== size) throw new Error(`The copy of ${link} came out short`);
+    if ((await stat(temp)).size !== size) throw new Error(`The copy of ${link} came out short`);
     if ((await readlink(link).catch(() => undefined)) !== target) throw new Error(`${link} changed while copying`);
 
     // Swap the copy into the link's place in one step, so the path is never missing or half-written
-    await rename(partial, link);
+    await rename(temp, link);
   } finally {
-    await rm(partial, { force: true });
+    await rm(temp, { force: true });
     active = undefined;
   }
   return { size, target };
@@ -79,8 +90,8 @@ export async function copy(link: string, reserve: number): Promise<{ size: numbe
  */
 export async function progress(): Promise<{ done: number; size: number } | undefined> {
   if (!active) return;
-  const { partial, size } = active;
-  return { done: (await stat(partial).catch(() => undefined))?.size ?? 0, size };
+  const { temp, size } = active;
+  return { done: (await stat(temp).catch(() => undefined))?.size ?? 0, size };
 }
 
 /**
@@ -106,7 +117,7 @@ export async function restorable({ path: file, target }: Copy): Promise<boolean>
  * copy in one step, so the path never goes missing.
  */
 export async function restore({ path: file, target }: Copy): Promise<void> {
-  const temp = path.join(path.dirname(file), `.${path.basename(file)}.link`);
+  const temp = link(file);
   await rm(temp, { force: true });
   await symlink(target, temp);
   await rename(temp, file);
@@ -123,5 +134,16 @@ export async function remove({ path: file }: Copy): Promise<void> {
  * Deletes a half-written copy when Tetharr is stopped mid-copy, so nothing is left behind.
  */
 export function abort(): void {
-  if (active) rmSync(active.partial, { force: true });
+  if (active) rmSync(active.temp, { force: true });
+}
+
+/**
+ * Deletes a temporary file an interrupted step left behind, and says whether it did. Safety: never delete a file
+ * Tetharr didn't create. Only a file with one of Tetharr's temporary names is ever touched.
+ */
+export async function clear(temp: string): Promise<boolean> {
+  const name = path.basename(temp);
+  if (!name.startsWith(".") || !/\.(partial|link)$/.test(name)) return false;
+  await rm(temp, { force: true });
+  return true;
 }

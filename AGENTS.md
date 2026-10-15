@@ -39,7 +39,7 @@ Code that enforces one of these says so with a `// Safety:` comment, so they can
 - **Never delete a file Tetharr didn't create.** Only files in the `copies` table may be deleted, and only while they still match the recorded size. A file that has been replaced is forgotten, never touched. Unpinning files Tetharr didn't create is a planned feature, but it stays off until the system has earned trust, and then needs explicit confirmation.
 - **Never act on a dead mount.** An unmounted share looks the same as "everything was deleted". Every library root must exist before the worker changes anything. A link that can't be followed is an error, never a reason to delete or re-grab: when unpinning, Tetharr only falls back to deleting and re-grabbing if other links in the library (or the original targets of other copies) can still be followed.
 - **Never act because an API call failed.** An Arr that can't be reached is reported and skipped. Missing data is never a decision.
-- **Temp files are `.<name>.partial` (copies) and `.<name>.link` (restored links).** The dot prefix and non-media extension mean scanners never pick up a half-made file, and both are swapped into place with a single rename.
+- **Temp files are `.<name>.partial` (copies) and `.<name>.link` (restored links).** The dot prefix and non-media extension mean scanners never pick up a half-made file, and both are swapped into place with a single rename. Each is recorded in the `temps` table before it's written and forgotten when its step ends, so one left by a crash is deleted at the start of the next pass, and only if it still has one of these names.
 - **Record a copy the moment it's in place, and forget it only after the Arr has been told.** A crash in between then leaves a file Tetharr won't delete, or a request it retries, never a title that's missing for good.
 - **Every path from an Arr goes through the path mappings.** Never assume the two views match.
 - **Preview mode (when it lands) means zero filesystem or Arr writes.** Tetharr's own database is the only exception.
@@ -114,7 +114,7 @@ src/
     routes/<module>/  one handler per file, plus an index.ts barrel per module
     services/         one file per external system or domain boundary: arr (the Arr API), files (copy, restore,
                       delete), paths, library, checks (can a connection see its library?), db (migrations), settings,
-                      pins, copies, http, log
+                      pins, copies, temps (temporary files being written), http, log
   client/
     main.ts           boot: router, query cache, styles
     app.vue           the frame around every page

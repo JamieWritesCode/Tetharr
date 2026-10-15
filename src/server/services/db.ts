@@ -48,6 +48,12 @@ const MIGRATIONS = [
 
   // 3: connections being removed, which stay until the worker has undone all their copies
   `ALTER TABLE arrs ADD COLUMN removing INTEGER NOT NULL DEFAULT 0`,
+
+  // 4: temporary files being written, so ones left by an interrupted step can be cleaned up
+  `CREATE TABLE temps (
+    path TEXT PRIMARY KEY,
+    created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 
 // How many backups taken before migrating are kept
