@@ -2,7 +2,7 @@
 
 Tetharr is a web app for Radarr/Sonarr users who stream their library from usenet (NzbDav or similar, mounted with rclone). It lets you choose, title by title, which movies and shows are kept as local copies and which stay as links to the usenet copy. Pinning a title swaps its links for real copies at the same paths. Unpinning it swaps them back.
 
-**Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons. Preview mode and login are next. Read [Where this is going](#where-this-is-going) before building them.
+**Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons. An activity history, a diagnostics bundle and login are next, before the first release. Read [Where this is going](#where-this-is-going) before building them.
 
 ## Glossary
 
@@ -52,7 +52,7 @@ These decisions are settled. Build to them.
 - **Granularity is movie, series, and season.** A pin with no season covers the whole title. A series pin is live: it covers every season, including episodes that arrive later. While a series is pinned, its seasons can't be pinned separately, and pinning the series replaces any season pins. The series grid only knows pins and copy counts (checking every file would mean a request per series), so each series' own page is where file states are checked. A re-grab for a series searches just the affected season.
 - **A background worker makes it so** ([src/server/worker.ts](src/server/worker.ts)). It is one idempotent pass: copy what's pinned and still streamed, undo Tetharr's copies of anything no longer pinned, one file at a time. It runs every five minutes, and straight away when the user pins or unpins. After a pass that hit problems it tries again after 30 seconds, doubling up to five minutes, so an Arr that started after Tetharr (common after a reboot) is picked up quickly. Because every step is safe to repeat, anything that fails or is interrupted is retried by the next pass. Its current activity and copy progress are held in memory for the UI, as a view onto the pass, not a second source of truth.
 - **Unpinning restores the link.** Pinning records where the link pointed. Unpinning recreates it if that target still resolves, with no gap and no search. Otherwise it deletes the copy and asks the Arr to re-grab. "Always re-grab" is a setting.
-- **Preview mode comes before release.** A switch in Settings, on by default for new installs, where the worker runs every check and shows what it would do, but changes nothing. Its interface (a banner, a plan of pending actions, confirmation when turning it off) is still to be designed.
+- **Preview mode comes after the first release.** A switch in Settings, on by default for new installs, where the worker runs every check and shows what it would do, but changes nothing. Its interface (a banner, a plan of pending actions, confirmation when turning it off) is still to be designed.
 - **Branch mode comes later:** links in one folder and copies in another, merged by mergerfs. In-place mode (both in the same folder) is the only mode for now.
 - **Removing a connection is a choice.** Either restore everything first (the connection shows as removing while the worker undoes its copies, then disappears), or remove it straight away and leave its copies on disk as unmanaged files, with their records forgotten. Connection ids are never reused, so no record can end up pointing at the wrong connection.
 - **Titles removed from an Arr are tidied, never acted on.** Their pins and records are forgotten once their copies are gone. A copy still on disk is listed for the user to keep (it becomes unmanaged) or delete, and its pin is kept meanwhile. If the title is added back, its copy and pin follow it to its new id, matched by path.
@@ -65,7 +65,7 @@ These decisions are settled. Build to them.
 - **Client:** Vue 3 single-page app built by Vite, with Vue Router, [TanStack Vue Query](https://tanstack.com/query) for server data, Tailwind CSS 4 + daisyUI 5, [Phosphor](https://phosphoricons.com) icons, and Geist + Geist Mono (self-hosted through Fontsource, so nothing loads from the internet).
 - **Typed API:** Hono RPC. The server exports the type of its route chain, and the client's `hc<App>` client gets every route's request and response types from it.
 - **Validation:** Zod schemas in `src/schemas/`, used by the server's validators, the client's forms, and as the source of the database row types.
-- In production, one Node process serves the API and the built client on one port. In development, the server runs in a container from the live source, and Vite serves the client on the host, passing `/api` through to it.
+- In production, one Node process serves the API and the built client on one port. The image starts as root only long enough to re-own `/config` and take on `PUID`/`PGID` (default `99:100`, Unraid's `nobody:users`) and `UMASK` (default `002`), then runs as that user, so copies are owned like the rest of the library. It never changes the library's ownership. In development, the server runs in a container from the live source, and Vite serves the client on the host, passing `/api` through to it.
 
 ## Design
 
@@ -122,6 +122,7 @@ src/
     services/         api.ts (typed client + unwrap), query.ts (cache), one file per resource
     views/            one file per page
     components/       pieces shared between pages
+entrypoint.sh         starts the production image as the PUID/PGID user
 dev/
   compose.yml         the dev environment: real Radarr and Sonarr, and Tetharr's server from the live source
   run.ts              starts it and fills in what's missing; also down, reset, outage, restore, regrab
