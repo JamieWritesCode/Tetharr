@@ -9,8 +9,9 @@ RUN npm ci --omit=dev
 FROM deps AS dev
 CMD ["node", "--watch-path=src", "--inspect=0.0.0.0:9229", "src/server/index.ts"]
 
-# Build the web interface
-FROM node:24.21.0-alpine3.24 AS build
+# Build the web interface. It comes out the same on every architecture, so it's built on the machine's own one rather
+# than emulated when building for another
+FROM --platform=$BUILDPLATFORM node:24.21.0-alpine3.24 AS build
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci
