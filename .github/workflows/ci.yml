@@ -61,6 +61,7 @@ jobs:
 
       # Name the image :edge, and label it with the repository so GitHub links the package to it
       - id: meta
+        if: env.publish == 'true'
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/jamiewritescode/tetharr
