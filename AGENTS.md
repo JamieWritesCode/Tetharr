@@ -123,6 +123,7 @@ src/
     views/            one file per page
     components/       pieces shared between pages
 entrypoint.sh         starts the production image as the PUID/PGID user
+.github/workflows/    ci.yml checks every pull request and publishes :edge from main; release.yml publishes a version tag
 dev/
   compose.yml         the dev environment: real Radarr and Sonarr, and Tetharr's server from the live source
   run.ts              starts it and fills in what's missing; also down, reset, outage, restore, regrab
@@ -142,7 +143,7 @@ npm run typecheck    # tsc for the server and dev tooling, vue-tsc for the clien
 npm run format       # prettier --write .
 npm run build        # build the client into dist/
 npm start            # production server, serving dist/
-npm run image        # build + push the :dev image for testing on a real stack
+npm run image        # build + push the :dev image, for testing a branch on a real stack before it merges
 npm run deps:check   # list updates that have passed the 14-day cooldown
 ```
 
@@ -163,6 +164,7 @@ npm run deps:check   # list updates that have passed the 14-day cooldown
 - **Node is pinned to the 24 LTS line.** `.nvmrc` and the Dockerfile name the exact release (including the Alpine version), and `engines` (enforced by `engine-strict`) refuses older Node and any npm too old to know `min-release-age`. Bump all three together.
 - **Install scripts are opt-in.** `strict-allow-scripts` makes any unreviewed install script fail the install. Approve one with `npm install-scripts approve <pkg>`, which records it under `allowScripts` in `package.json`.
 - **`dependencies` holds only what the server needs at runtime.** Everything Vite bundles into the client is a `devDependency`, which keeps the image small.
+- **GitHub Actions are pinned to a full commit SHA** from a release at least 14 days old, with its version in a comment beside it. Upgrade them by hand, the same way.
 - Keep dependencies few, and prefer `node:` built-ins.
 
 ## Coding standards
@@ -235,6 +237,12 @@ Comments are written for someone who can't code but knows the domain (see the [G
 - **Losing the database is safe by design.** It only means Tetharr forgets which copies it made, so it won't delete them. The worst case is files left behind, never files deleted. Keep it that way.
 - **Log decisions with the fields needed to understand them** (arr, title, paths). Logs are JSON lines.
 - Windows is unsupported.
+
+## Releases
+
+- **Every merge to `main` publishes the `:edge` image**, after the same checks every pull request must pass: typecheck, Prettier, and an image build.
+- **A release is a version bump, then a tag.** A pull request sets `version` in `package.json` (the version the sidebar shows). Once it's merged, tagging that commit `v<version>`, or creating a release on GitHub, runs `release.yml`. It refuses a tag that doesn't match `package.json` or isn't on `main`, then publishes the image for amd64 and arm64 as `X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release with notes from the merged pull request titles. A pre-release (`v0.2.0-rc.1`) gets only its own tag, never `latest`.
+- **The first tag freezes the migrations** (see House rules).
 
 ## Commits
 
