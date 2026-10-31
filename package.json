@@ -1,6 +1,6 @@
 {
   "name": "tetharr",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Choose which Radarr/Sonarr titles live on local disk and which stream from usenet symlinks",
   "license": "MIT",

@@ -13,7 +13,7 @@ If your Arrs import symlinks into a usenet mount (NzbDav, AltMount and similar, 
 ```yaml
 services:
   tetharr:
-    image: ghcr.io/jamiewritescode/tetharr:edge # the latest build of main, until the first release
+    image: ghcr.io/jamiewritescode/tetharr:latest # or :edge for the latest build of main
     environment:
       - PUID=99 # the user and group your Arrs run as
       - PGID=100
