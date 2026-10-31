@@ -2,7 +2,7 @@
 
 Tetharr is a web app for Radarr/Sonarr users who stream their library from usenet (NzbDav or similar, mounted with rclone). It lets you choose, title by title, which movies and shows are kept as local copies and which stay as links to the usenet copy. Pinning a title swaps its links for real copies at the same paths. Unpinning it swaps them back.
 
-**Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons. An activity history, a diagnostics bundle and login are next, before the first release. Read [Where this is going](#where-this-is-going) before building them.
+**Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons. An activity history, a diagnostics bundle and login are next, before Tetharr is advertised. Read [Where this is going](#where-this-is-going) before building them.
 
 ## Glossary
 
@@ -57,7 +57,7 @@ These decisions are settled. Build to them.
 - **Removing a connection is a choice.** Either restore everything first (the connection shows as removing while the worker undoes its copies, then disappears), or remove it straight away and leave its copies on disk as unmanaged files, with their records forgotten. Connection ids are never reused, so no record can end up pointing at the wrong connection.
 - **Titles removed from an Arr are tidied, never acted on.** Their pins and records are forgotten once their copies are gone. A copy still on disk is listed for the user to keep (it becomes unmanaged) or delete, and its pin is kept meanwhile. If the title is added back, its copy and pin follow it to its new id, matched by path.
 - **All configuration lives in the settings UI**, stored in the database. There is no config file.
-- **No authentication yet.** Tetharr is for trusted networks only until login lands, which must happen before any public release.
+- **No authentication yet.** Tetharr is for trusted networks only until login lands, which must happen before Tetharr is advertised anywhere.
 
 ## Stack
 
@@ -232,7 +232,7 @@ Comments are written for someone who can't code but knows the domain (see the [G
 
 ## House rules
 
-- **The database only changes through migrations** in [services/db.ts](src/server/services/db.ts). They run in order at startup, each in a transaction, tracked by `PRAGMA user_version`, after a backup (`tetharr.db.v<N>.bak`, newest three kept). Tetharr refuses to open a database a newer version has migrated. Migrations only move forward. **Until the first tagged release, existing migrations may be edited (then `npm run dev:reset`). After it, they are frozen and changes go in a new migration.** Settings live in a key/value table with defaults in [schemas/settings.ts](src/schemas/settings.ts), so adding a setting never needs a migration.
+- **The database only changes through migrations** in [services/db.ts](src/server/services/db.ts). They run in order at startup, each in a transaction, tracked by `PRAGMA user_version`, after a backup (`tetharr.db.v<N>.bak`, newest three kept). Tetharr refuses to open a database a newer version has migrated. Migrations only move forward. **An existing migration is never edited**, because a database that has already run it would never see the change. Every change goes in a new migration. Settings live in a key/value table with defaults in [schemas/settings.ts](src/schemas/settings.ts), so adding a setting never needs a migration.
 - **A table and the row type in the service that queries it change together.** Zod schemas in `src/schemas/` validate what the API accepts.
 - **Losing the database is safe by design.** It only means Tetharr forgets which copies it made, so it won't delete them. The worst case is files left behind, never files deleted. Keep it that way.
 - **Log decisions with the fields needed to understand them** (arr, title, paths). Logs are JSON lines.
@@ -242,7 +242,6 @@ Comments are written for someone who can't code but knows the domain (see the [G
 
 - **Every merge to `main` publishes the `:edge` image**, after the same checks every pull request must pass: typecheck, Prettier, and an image build.
 - **A release is a version bump, then a tag.** A pull request sets `version` in `package.json` (the version the sidebar shows). Once it's merged, tagging that commit `v<version>`, or creating a release on GitHub, runs `release.yml`. It refuses a tag that doesn't match `package.json` or isn't on `main`, then publishes the image for amd64 and arm64 as `X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release with notes from the merged pull request titles. A pre-release (`v0.2.0-rc.1`) gets only its own tag, never `latest`.
-- **The first tag freezes the migrations** (see House rules).
 
 ## Commits
 

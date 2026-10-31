@@ -9,23 +9,26 @@ import { DatabaseSync } from "node:sqlite";
 import * as LogService from "./log.ts";
 
 /**
- * Each step changes the database's structure, and runs once. A step is never edited after it has been released: later
- * changes go in a new step at the end. The row types in the services that use each table change alongside them.
+ * Each step changes the database's structure, and runs once. A step is never edited, because a database that has
+ * already run it would never see the change: every change goes in a new step at the end. The row types in the services
+ * that use each table change alongside them.
  */
 const MIGRATIONS = [
-  // 1: connections to Radarr and Sonarr. AUTOINCREMENT means a removed connection's id is never given to a new one, so
-  // records that name a connection can never end up pointing at the wrong one
-  `CREATE TABLE IF NOT EXISTS arrs (
+  // 1: the initial structure. Connections to Radarr and Sonarr, where AUTOINCREMENT means a removed connection's id is
+  // never given to a new one, so records that name a connection can never point at the wrong one, and a connection
+  // being removed stays until the worker has undone all its copies. What the user has pinned, where a pin with no
+  // season covers a whole title. The copies Tetharr has made, its settings, and the temporary files it's writing, so
+  // ones left by an interrupted step can be cleaned up
+  `CREATE TABLE arrs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,
     name TEXT NOT NULL,
     url TEXT NOT NULL,
     api_key TEXT NOT NULL,
-    path_mappings TEXT NOT NULL
-  )`,
-
-  // 2: what the user has pinned, the copies Tetharr has made, and settings. A pin with no season covers a whole title
-  `CREATE TABLE pins (
+    path_mappings TEXT NOT NULL,
+    removing INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE pins (
     arr INTEGER NOT NULL,
     media INTEGER NOT NULL,
     season INTEGER,
@@ -44,13 +47,8 @@ const MIGRATIONS = [
   CREATE TABLE settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
-  )`,
-
-  // 3: connections being removed, which stay until the worker has undone all their copies
-  `ALTER TABLE arrs ADD COLUMN removing INTEGER NOT NULL DEFAULT 0`,
-
-  // 4: temporary files being written, so ones left by an interrupted step can be cleaned up
-  `CREATE TABLE temps (
+  );
+  CREATE TABLE temps (
     path TEXT PRIMARY KEY,
     created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
