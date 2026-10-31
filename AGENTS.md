@@ -241,7 +241,7 @@ Comments are written for someone who can't code but knows the domain (see the [G
 ## Releases
 
 - **Every merge to `main` publishes the `:edge` image**, after the same checks every pull request must pass: typecheck, Prettier, and an image build.
-- **A release is a version bump, then a tag.** A pull request sets `version` in `package.json` (the version the sidebar shows). Once it's merged, tagging that commit `v<version>`, or creating a release on GitHub, runs `release.yml`. It refuses a tag that doesn't match `package.json` or isn't on `main`, then publishes the image for amd64 and arm64 as `X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release with notes from the merged pull request titles. A pre-release (`v0.2.0-rc.1`) gets only its own tag, never `latest`.
+- **A release is a version bump, then a tag.** A pull request sets `version` in `package.json` (the version the sidebar shows). Once it's merged, tagging that commit with the version (`0.2.0`, no `v`), or creating a release on GitHub with that tag, runs `release.yml`. It refuses a tag that doesn't match `package.json` or isn't on `main`, then publishes the image for amd64 and arm64 as `X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release with notes from the merged pull request titles. A pre-release (`0.2.0-rc.1`) gets only its own tag, never `latest`.
 
 ## Commits
 
