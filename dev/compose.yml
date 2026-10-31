@@ -3,6 +3,9 @@
 #
 # Radarr and Sonarr see the library at /data, and Tetharr sees it at /media on purpose, so path mappings are always
 # exercised. The symlinks are relative, so they resolve from every container and from the host.
+#
+# Every port is open to this machine only. The Arrs have no login and API keys anyone can read in dev/run.ts, and the
+# debugger lets whoever reaches it run code here, so none of them may be reachable from the network.
 name: tetharr-dev
 
 x-arr: &arr
@@ -16,7 +19,7 @@ services:
   radarr:
     <<: *arr
     image: lscr.io/linuxserver/radarr:6.4.4
-    ports: ["7878:7878"]
+    ports: ["127.0.0.1:7878:7878"]
     volumes:
       - ./state/radarr:/config:z
       - ./media:/data:z
@@ -24,7 +27,7 @@ services:
   sonarr:
     <<: *arr
     image: lscr.io/linuxserver/sonarr:4.0.20
-    ports: ["8989:8989"]
+    ports: ["127.0.0.1:8989:8989"]
     volumes:
       - ./state/sonarr:/config:z
       - ./media:/data:z
@@ -36,7 +39,7 @@ services:
     user: ${PUID:-0}:${PGID:-0}
     environment:
       TETHARR_DB: /config/tetharr.db
-    ports: ["8787:8787", "9229:9229"]
+    ports: ["127.0.0.1:8787:8787", "127.0.0.1:9229:9229"]
     volumes:
       - ../src:/app/src:ro,z
       - ./state/tetharr:/config:z

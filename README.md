@@ -4,9 +4,9 @@ Choose which Radarr and Sonarr titles live on local disk and which stream from u
 
 If your Arrs import symlinks into a usenet mount (NzbDav, AltMount and similar, mounted with rclone), you get an effectively unlimited library that takes almost no disk space. Sometimes you still want a title kept locally: the show you're watching right now, the kids' films, anything you'd hate to lose to a takedown. Tetharr swaps a title's symlinks for real copies at the same paths, and back again, so Plex/Jellyfin watch state and the Arrs' records never notice.
 
-> **Status:** early development. Pinning and unpinning work for Radarr movies and Sonarr series and seasons. Login is still to come, so don't point it at a library you care about yet.
+> **Status:** early, and so far used only by its author. Pinning and unpinning work for Radarr movies and Sonarr series and seasons. Try it on a few titles before trusting it with your whole library.
 >
-> There is no login yet. Only run Tetharr on a network you trust.
+> **There is no login yet.** Anyone who can reach Tetharr can change what's pinned and read your Arrs' API keys. Only run it on a network you trust, and never expose it to the internet.
 
 ## Running
 
