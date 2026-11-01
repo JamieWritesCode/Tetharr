@@ -2,7 +2,8 @@
 /**
  * The movie library: every movie from every Radarr, showing whether its file streams from the mount or is local, and
  * what the worker is doing to it. Each poster has a pin button: pinning keeps a local copy, unpinning frees up the
- * space and streams it again. Filters along the top narrow the list down, and the search box finds titles.
+ * space and streams it again. Each card opens the movie's own page. Filters along the top narrow the list down, and the
+ * search box finds titles.
  */
 
 import { PhMagnifyingGlass, PhPlugs } from "@phosphor-icons/vue";
@@ -16,19 +17,17 @@ import ProblemsComponent from "../components/problems.vue";
 import StateBadgeComponent from "../components/state-badge.vue";
 import { size } from "../format.ts";
 import * as ActivityService from "../services/activity.ts";
-import * as ConfirmService from "../services/confirm.ts";
 import * as MoviesService from "../services/movies.ts";
-import * as SettingsService from "../services/settings.ts";
 
 const { data, isPending, error } = MoviesService.useList();
 const { data: activity } = ActivityService.useStatus();
-const { mutate: pin, error: pinError } = MoviesService.usePin();
-const { data: options } = SettingsService.useOptions();
+const { toggle, error: pinError } = MoviesService.useToggle();
+const { badge } = MoviesService.useBadge();
 const cache = useQueryClient();
 const search = ref("");
 const filter = ref("all");
 
-type Movie = NonNullable<typeof data.value>["movies"][number];
+type Movie = MoviesService.Movie;
 
 // The filters. "Needs attention" gathers the states that mean something is wrong
 const FILTERS: { key: string; label: string; test: (m: Movie) => boolean }[] = [
@@ -57,56 +56,6 @@ const movies = computed(() => {
   const term = search.value.trim().toLowerCase();
   return (data.value?.movies ?? []).filter((m) => test(m) && m.title.toLowerCase().includes(term));
 });
-
-/**
- * The label for a movie's card: what the worker is doing to it right now, whether it's waiting for the worker, or else
- * where its file lives.
- */
-function badge(movie: Movie) {
-  const current = activity.value?.current;
-  if (current?.arr === movie.arr && current.media === movie.id) {
-    const progress = current.progress;
-    return {
-      state: current.action,
-      detail: progress?.size ? `${Math.floor((progress.done / progress.size) * 100)}%` : undefined,
-    };
-  }
-  if ((movie.pinned && movie.state === "streamed") || (!movie.pinned && movie.managed))
-    return { state: "queued" as const };
-  if (movie.state === "local" && !movie.managed) return { state: "unmanaged" as const };
-  return { state: movie.state };
-}
-
-/**
- * Whether a movie can be pinned or unpinned. A movie with no file has nothing to copy, and a local file Tetharr didn't
- * create can never be unpinned, so neither gets a pin button (unless it's already pinned, so it can be unpinned).
- */
-const pinnable = (movie: Movie) =>
-  movie.pinned || (movie.state !== "none" && !(movie.state === "local" && !movie.managed));
-
-/**
- * Pins or unpins a movie. Unpinning that will delete the copy and leave the movie missing until Radarr downloads it
- * again asks first. Unpinning that just puts the link back is instant and harmless, so it doesn't.
- */
-async function toggle(movie: Movie) {
-  if (movie.pinned && movie.managed && (options.value?.unpin === "regrab" || !movie.restorable)) {
-    const choice = await ConfirmService.ask({
-      title: `Unpin ${movie.title}?`,
-      summary:
-        options.value?.unpin === "regrab"
-          ? "Unpinning is set to always re-grab."
-          : "Its streamed file is gone, so the link can't simply be put back.",
-      steps: [`Delete Tetharr's local copy (${size(movie.size)})`, "Ask Radarr to download it again"],
-      consequences: [
-        { tone: "warning", text: `${movie.title} will be missing until Radarr finishes downloading it.` },
-        { tone: "success", text: `${size(movie.size)} of local space is freed.` },
-      ],
-      choices: [{ value: "unpin", label: "Unpin and re-grab", tone: "error" }],
-    });
-    if (!choice) return;
-  }
-  pin({ arr: movie.arr, id: movie.id, pinned: !movie.pinned });
-}
 </script>
 
 <template>
@@ -168,7 +117,8 @@ async function toggle(movie: Movie) {
         :poster="movie.poster"
         :details="movie.size ? `${movie.year} · ${size(movie.size)}` : String(movie.year)"
         :pinned="movie.pinned"
-        :pinnable="pinnable(movie)"
+        :pinnable="MoviesService.pinnable(movie)"
+        :to="`/movies/${movie.arr}/${movie.id}`"
         @pin="toggle(movie)"
       >
         <StateBadgeComponent v-bind="badge(movie)" :path="movie.path" />

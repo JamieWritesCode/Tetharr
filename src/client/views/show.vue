@@ -2,12 +2,13 @@
 /**
  * One series' own page: its details and a pin button for the whole series, then every season as a row with what its
  * episode files are right now, a pin button for that season alone, and the list of its files. While the whole series is
- * pinned, it covers every season, so the season buttons are switched off.
+ * pinned, it covers every season, so the season buttons are switched off. An address ending in #season-N scrolls to
+ * that season with its files unfolded, so a link can point straight at one season.
  */
 
 import { PhArrowLeft, PhFilmSlate, PhPushPin } from "@phosphor-icons/vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { computed, watch } from "vue";
+import { computed, nextTick, watch } from "vue";
 import { useRoute } from "vue-router";
 import ProblemsComponent from "../components/problems.vue";
 import SectionCardComponent from "../components/section-card.vue";
@@ -34,6 +35,15 @@ type Entry = Show["entries"][number];
 watch(
   () => [activity.value?.current?.path, activity.value?.last],
   () => cache.invalidateQueries({ queryKey: ["series"] }),
+);
+
+// Once the series has loaded, scroll to the season the address names, if any
+watch(
+  () => [route.hash, !!show.value],
+  async () => {
+    await nextTick();
+    if (route.hash) document.querySelector(route.hash)?.scrollIntoView({ behavior: "smooth" });
+  },
 );
 
 // The seasons in order, with specials last, each with its files and whether it's pinned (on its own, or by the series)
@@ -176,7 +186,7 @@ async function toggle(season?: Season) {
       description="Pin a season to keep just its episodes local. Pinning the series covers every season, including new ones."
     >
       <ul class="divide-y divide-base-300">
-        <li v-for="season in seasons" :key="season.number" class="px-5 py-4">
+        <li v-for="season in seasons" :id="`season-${season.number}`" :key="season.number" class="px-5 py-4">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
@@ -204,8 +214,8 @@ async function toggle(season?: Season) {
             </button>
           </div>
 
-          <!-- The season's files, folded away until wanted -->
-          <details v-if="season.items.length" class="mt-2">
+          <!-- The season's files, folded away until wanted, or unfolded when the address names the season -->
+          <details v-if="season.items.length" class="mt-2" :open="route.hash === `#season-${season.number}`">
             <summary class="cursor-pointer text-xs text-base-content/60 hover:text-base-content">
               {{ season.items.length }} file{{ season.items.length === 1 ? "" : "s" }}
             </summary>

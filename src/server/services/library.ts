@@ -62,6 +62,12 @@ export async function entries(arr: Arr): Promise<Entry[]> {
 }
 
 /**
+ * One movie in one Radarr, with where its file lives, for its own page. Nothing is returned if the Radarr no longer has
+ * it.
+ */
+export const movie = async (arr: Arr, id: number) => (await entries(arr)).find((m) => m.id === id);
+
+/**
  * Tetharr's copies, for one Arr, of titles it no longer lists, whose files are still there. `claimed` says whether a
  * copy still belongs to a listed title, such as one removed and added again with a new id.
  */
