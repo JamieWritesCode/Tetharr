@@ -35,7 +35,7 @@ const props = defineProps<{ state: Badge; detail?: string | undefined; path?: st
 
 // What each label says, its colour and icon, and what it means
 const STATES = {
-  streamed: { label: "Streamed", tone: "badge-info", icon: PhCloud, hint: "A link to the usenet copy" },
+  streamed: { label: "Streamed", tone: "badge-info", icon: PhCloud, hint: "A link into the mount" },
   local: { label: "Local", tone: "badge-success", icon: PhHardDrive, hint: "A local copy Tetharr made" },
   partial: {
     label: "Partly local",

@@ -8,11 +8,12 @@ import type { Input } from "../../schemas/arr.ts";
 
 /**
  * A movie as Tetharr cares about it. `file` is the path exactly as Radarr reports it, which may need translating before
- * Tetharr can find it.
+ * Tetharr can find it. `sortTitle` is the title Radarr sorts by, without a leading "The".
  */
 export interface Movie {
   id: number;
   title: string;
+  sortTitle: string;
   year: number;
   poster: string | undefined;
   size: number;
@@ -21,11 +22,12 @@ export interface Movie {
 
 /**
  * A series as Tetharr cares about it, with each season's file count, episode count and size. `path` is the series'
- * folder exactly as Sonarr reports it.
+ * folder exactly as Sonarr reports it. `sortTitle` is the title Sonarr sorts by, without a leading "The".
  */
 export interface Series {
   id: number;
   title: string;
+  sortTitle: string;
   year: number;
   poster: string | undefined;
   overview: string;
@@ -53,6 +55,7 @@ interface Status {
 interface Item {
   id: number;
   title: string;
+  sortTitle: string;
   year: number;
   sizeOnDisk: number;
   images: { coverType: string; remoteUrl?: string }[];
@@ -62,6 +65,7 @@ interface Item {
 interface Show {
   id: number;
   title: string;
+  sortTitle: string;
   year: number;
   overview?: string;
   path: string;
@@ -125,9 +129,10 @@ export async function status(arr: Input): Promise<string> {
  * Every movie in a Radarr, whether or not it has a file yet.
  */
 export async function movies(arr: Input): Promise<Movie[]> {
-  return (await request<Item[]>(arr, "movie")).map(({ id, title, year, sizeOnDisk, images, movieFile }) => ({
+  return (await request<Item[]>(arr, "movie")).map(({ id, title, sortTitle, year, sizeOnDisk, images, movieFile }) => ({
     id,
     title,
+    sortTitle,
     year,
     // Ask TMDB for a card-sized poster rather than the full-resolution original
     poster: images.find((i) => i.coverType === "poster")?.remoteUrl?.replace("/t/p/original/", "/t/p/w342/"),
@@ -179,9 +184,10 @@ export async function regrab(arr: Input, id: number, season?: number): Promise<v
  */
 export async function series(arr: Input): Promise<Series[]> {
   return (await request<Show[]>(arr, "series")).map(
-    ({ id, title, year, overview, path, images, statistics, seasons }) => ({
+    ({ id, title, sortTitle, year, overview, path, images, statistics, seasons }) => ({
       id,
       title,
+      sortTitle,
       year,
       // Ask TheTVDB for the poster at its normal size; Sonarr's own copy would need the API key
       poster: images.find((i) => i.coverType === "poster")?.remoteUrl,

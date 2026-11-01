@@ -9,8 +9,8 @@ import path from "node:path";
 import type { Copy } from "./copies.ts";
 
 /**
- * What is at a library path right now: streamed (a symlink that can be followed to its usenet copy), local (a real file
- * on disk), broken (a symlink that can't be followed, often because the mount is down), or unseen (nothing there,
+ * What is at a library path right now: streamed (a symlink that can be followed into the mount), local (a real file on
+ * disk), broken (a symlink that can't be followed, often because the mount is down), or unseen (nothing there,
  * usually a path mapping that needs fixing).
  */
 export type State = "streamed" | "local" | "broken" | "unseen";

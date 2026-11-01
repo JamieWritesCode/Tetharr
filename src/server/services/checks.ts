@@ -1,7 +1,7 @@
 /**
  * Checks that a connection can do its job: that the Arr answers and is the right kind, that Tetharr can see every
  * library folder the Arr uses, and that links in the library can be followed. Testing a connection in Settings runs
- * them, so the two most common setup mistakes (a missing path mapping, and the usenet mount at a different path inside
+ * them, so the two most common setup mistakes (a missing path mapping, and the mount at a different path inside
  * Tetharr) show up straight away, with what to change.
  */
 
@@ -21,8 +21,9 @@ export interface Check {
   detail: string;
 }
 
-// How many of the Arr's files to look at, at most, when looking for a link to follow
+// When looking for a link to follow, stop after this many files Tetharr can see, or this many series asked about
 const SAMPLE = 25;
+const SERIES = 25;
 
 /**
  * Runs every check against a connection. If the Arr can't be reached at all, that error is thrown, since nothing else
@@ -34,8 +35,9 @@ export async function run(arr: Input): Promise<Check[]> {
 
   // Check the library folders, then a link. A problem asking the Arr for either is reported as that check failing
   const fail = (label: string) => (err: Error) => [{ label, ok: false, detail: err.message }];
-  checks.push(...(await folders(arr).catch(fail("Library folders"))));
-  checks.push(...(await links(arr).catch(fail("Links"))));
+  const roots = await folders(arr).catch(fail("Library folders"));
+  const found = roots.every((c) => c.ok !== false);
+  checks.push(...roots, ...(await links(arr, found).catch(fail("Links"))));
   return checks;
 }
 
@@ -62,43 +64,49 @@ async function folders(arr: Input): Promise<Check[]> {
 
 /**
  * Finds one link among the Arr's files and checks that its target can be followed from inside Tetharr. A link that
- * can't be followed usually means the usenet mount sits at a different path in Tetharr than in the Arr.
+ * can't be followed usually means the mount sits at a different path in Tetharr than in the Arr. `found` says whether
+ * every library folder was found, so a file Tetharr can't see is only blamed on the folders when that check failed.
  */
-async function links(arr: Input): Promise<Check[]> {
-  const files = (await sample(arr)).map((file) => PathsService.map(arr, file));
-  if (!files.length) return [{ label: "Links", ok: null, detail: `${arr.name} has no files to check yet` }];
-
-  // Look for the first file that's a link, counting how many files Tetharr can see at all
+async function links(arr: Input, found: boolean): Promise<Check[]> {
+  // Look for the first file that's a link, counting the files checked and how many of them Tetharr can see
+  let checked = 0;
   let seen = 0;
-  for (const file of files) {
-    const entry = await lstat(file).catch(() => undefined);
+  for await (const file of files(arr)) {
+    const mapped = PathsService.map(arr, file);
+    const entry = await lstat(mapped).catch(() => undefined);
+    checked++;
     if (entry) seen++;
-    if (!entry?.isSymbolicLink()) continue;
-    if (await stat(file).catch(() => undefined)) return [{ label: "Links", ok: true, detail: "Links can be followed" }];
-    const target = path.resolve(path.dirname(file), await readlink(file));
-    const fix = `${target} doesn't exist inside Tetharr. Mount your usenet store at the same path in Tetharr as in ${arr.name}.`;
-    return [{ label: "Links", ok: false, detail: fix }];
+    if (entry?.isSymbolicLink()) {
+      const ok = !!(await stat(mapped).catch(() => undefined));
+      if (ok) return [{ label: "Links", ok, detail: "Links can be followed" }];
+      const target = path.resolve(path.dirname(mapped), await readlink(mapped));
+      const fix = `${target} doesn't exist inside Tetharr. Mount your usenet or debrid store at the same path in Tetharr as in ${arr.name}.`;
+      return [{ label: "Links", ok: false, detail: fix }];
+    }
+    if (seen >= SAMPLE) break;
   }
 
-  // No link found: either Tetharr can't see the files at all, or they're all real files
-  const detail = seen
-    ? "None of the files checked are links, so there was nothing to follow"
-    : "Tetharr can't see any of these files, so links couldn't be checked. Fix the library folders first.";
+  // No link found: there are no files yet, they're all real files, or Tetharr can't see them where it looks
+  const detail = !checked
+    ? `${arr.name} has no files to check yet`
+    : seen
+      ? "None of the files checked are links, so there was nothing to follow"
+      : found
+        ? `None of the ${checked} files checked are where Tetharr looks for them, so there was no link to follow. Check the path mappings, unless those files live elsewhere (such as another mergerfs branch).`
+        : "Tetharr can't see any of these files, so links couldn't be checked. Fix the library folders first.";
   return [{ label: "Links", ok: null, detail }];
 }
 
 /**
- * Up to a couple of dozen file paths from the Arr, as it reports them. For Sonarr this means asking for the episode
- * files of a few series, one series at a time, so it stays quick on a big library.
+ * The Arr's file paths, as it reports them, fetched only as they're needed. For Sonarr this means asking for the
+ * episode files of one series at a time, so the check stops asking as soon as it has found a link.
  */
-async function sample(arr: Input): Promise<string[]> {
+async function* files(arr: Input): AsyncGenerator<string> {
   if (arr.type === "radarr") {
-    return (await ArrService.movies(arr)).flatMap((m) => (m.file ? [m.file] : [])).slice(0, SAMPLE);
+    for (const movie of await ArrService.movies(arr)) if (movie.file) yield movie.file;
+    return;
   }
-  const files: string[] = [];
-  for (const series of (await ArrService.series(arr)).filter((s) => s.files).slice(0, 5)) {
-    files.push(...(await ArrService.episodes(arr, series.id)).map((e) => e.file));
-    if (files.length >= SAMPLE) break;
+  for (const series of (await ArrService.series(arr)).filter((s) => s.files).slice(0, SERIES)) {
+    for (const episode of await ArrService.episodes(arr, series.id)) yield episode.file;
   }
-  return files.slice(0, SAMPLE);
 }

@@ -15,6 +15,9 @@ import * as PathsService from "./paths.ts";
 import * as PinsService from "./pins.ts";
 import * as SettingsService from "./settings.ts";
 
+// Compares names the way a person reads them, so "Episode 2" comes before "Episode 10"
+const { compare } = new Intl.Collator(undefined, { numeric: true });
+
 /**
  * A movie, which Radarr it came from, where Tetharr sees its file and what that file is right now, whether the user has
  * pinned it, and whether its local file is a copy Tetharr made. For a copy, `restorable` says whether unpinning can
@@ -73,8 +76,8 @@ async function orphans(arr: Arr, listed: number, claimed: (path: string) => bool
 }
 
 /**
- * Every movie from every Radarr, plus copies of movies that are no longer in Radarr. A Radarr that can't be reached is
- * listed in `errors` instead.
+ * Every movie from every Radarr in title order, plus copies of movies that are no longer in Radarr. A Radarr that can't
+ * be reached is listed in `errors` instead.
  */
 export async function movies(): Promise<{ movies: Entry[]; orphans: Orphan[]; errors: string[] }> {
   const movies: Entry[] = [];
@@ -93,7 +96,7 @@ export async function movies(): Promise<{ movies: Entry[]; orphans: Orphan[]; er
       LogService.error((err as Error).message, { arr: arr.name });
     }
   }
-  return { movies, orphans: found, errors };
+  return { movies: movies.sort((a, b) => compare(a.sortTitle, b.sortTitle)), orphans: found, errors };
 }
 
 /**
@@ -140,7 +143,9 @@ export async function shows(arr: Arr): Promise<Show[]> {
 }
 
 /**
- * Every episode file in one series, with where it lives right now.
+ * Every episode file in one series, with where it lives right now, in episode order. Sonarr doesn't give episode
+ * numbers with its files, but its file names always carry them, so sorting by name puts them in order and the worker
+ * copies the first episode first.
  */
 export async function episodes(arr: Arr, series: Series): Promise<EpisodeFile[]> {
   const copies = new Map(CopiesService.list(arr.id).map((c) => [c.path, c]));
@@ -154,12 +159,12 @@ export async function episodes(arr: Arr, series: Series): Promise<EpisodeFile[]>
       const name = file.split("/").at(-1)!;
       return { id, season, name, size, path, state: await FilesService.state(path), managed: !!copy, restorable };
     }),
-  );
+  ).then((files) => files.sort((a, b) => a.season - b.season || compare(a.name, b.name)));
 }
 
 /**
- * Every series from every Sonarr, plus copies of series that are no longer in Sonarr. A Sonarr that can't be reached is
- * listed in `errors` instead.
+ * Every series from every Sonarr in title order, plus copies of series that are no longer in Sonarr. A Sonarr that
+ * can't be reached is listed in `errors` instead.
  */
 export async function series(): Promise<{ series: Show[]; orphans: Orphan[]; errors: string[] }> {
   const found: Show[] = [];
@@ -178,7 +183,7 @@ export async function series(): Promise<{ series: Show[]; orphans: Orphan[]; err
       LogService.error((err as Error).message, { arr: arr.name });
     }
   }
-  return { series: found, orphans: left, errors };
+  return { series: found.sort((a, b) => compare(a.sortTitle, b.sortTitle)), orphans: left, errors };
 }
 
 /**

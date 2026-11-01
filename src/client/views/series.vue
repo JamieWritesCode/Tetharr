@@ -57,14 +57,16 @@ const shows = computed(() => {
 });
 
 /**
- * The label for a series' card: what the worker is doing to it right now, or how many of its files are local copies.
- * Series with no copies get no label, because checking every file means a request per series; their page shows it.
+ * The label for a series' card: what the worker is doing to it right now (while copying, which of the pinned files it's
+ * on), or how many of its files are local copies. Series with no copies get no label, because checking every file means
+ * a request per series; their page shows it.
  */
 function badge(show: Show) {
   const current = activity.value?.current;
   if (current?.arr === show.arr && current.media === show.id) {
-    const progress = current.progress;
-    const detail = progress?.size ? `${Math.floor((progress.done / progress.size) * 100)}%` : undefined;
+    const pinned = show.seasons.filter((s) => show.pinned || show.seasonsPinned.includes(s.number));
+    const files = pinned.reduce((total, s) => total + s.files, 0);
+    const detail = current.action === "copying" ? `${Math.min(show.copies + 1, files)}/${files}` : undefined;
     return { state: current.action, detail };
   }
   if (!show.copies) return;

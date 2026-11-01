@@ -72,22 +72,24 @@ function badge(file: Entry, pinned: boolean) {
 }
 
 /**
- * The label for a season, summing up its files: what the worker is doing in it, anything that needs attention, whether
- * it's waiting for the worker, or how much of it is local.
+ * The label for a season, summing up its files: what the worker is doing in it (while copying, which file of the season
+ * it's on, since the current file's percentage would read as the whole season's), anything that needs attention,
+ * whether it's waiting for the worker, or how much of it is local.
  */
 function summary(season: Season) {
   const current = activity.value?.current;
-  if (current?.arr === arr.value && current.media === id.value && current.season === season.number) {
-    return { state: current.action, detail: current.action === "copying" ? progress() : undefined };
-  }
   const { items } = season;
+  const local = items.filter((f) => f.state === "local").length;
+  if (current?.arr === arr.value && current.media === id.value && current.season === season.number) {
+    const detail = current.action === "copying" ? `${Math.min(local + 1, items.length)}/${items.length}` : undefined;
+    return { state: current.action, detail };
+  }
   if (!items.length) return { state: "none" as const };
   if (items.some((f) => f.state === "broken")) return { state: "broken" as const };
   if (items.some((f) => f.state === "unseen")) return { state: "unseen" as const };
   if (items.some((f) => (season.pinned && f.state === "streamed") || (!season.pinned && f.managed))) {
     return { state: "queued" as const };
   }
-  const local = items.filter((f) => f.state === "local").length;
   if (!local) return { state: "streamed" as const };
   return local === items.length
     ? { state: "local" as const }

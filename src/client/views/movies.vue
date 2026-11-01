@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * The movie library: every movie from every Radarr, showing whether its file streams from usenet or is local, and what
- * the worker is doing to it. Each poster has a pin button: pinning keeps a local copy, unpinning frees up the space and
- * streams it again. Filters along the top narrow the list down, and the search box finds titles.
+ * The movie library: every movie from every Radarr, showing whether its file streams from the mount or is local, and
+ * what the worker is doing to it. Each poster has a pin button: pinning keeps a local copy, unpinning frees up the
+ * space and streams it again. Filters along the top narrow the list down, and the search box finds titles.
  */
 
 import { PhMagnifyingGlass, PhPlugs } from "@phosphor-icons/vue";
