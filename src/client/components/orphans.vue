@@ -25,8 +25,8 @@ async function settle(orphan: Orphan, action: "keep" | "delete") {
       ? {
           title: `Keep ${name}?`,
           consequences: [
-            { tone: "info", text: "The file stays where it is, as an unmanaged local file." },
-            { tone: "info", text: "Tetharr forgets it, and will never change or delete it." },
+            { tone: "info", text: "The file stays, as an unmanaged local file." },
+            { tone: "info", text: "Tetharr forgets it and never touches it again." },
           ],
           choices: [{ value: "keep", label: "Keep the file" }],
         }
@@ -34,8 +34,8 @@ async function settle(orphan: Orphan, action: "keep" | "delete") {
           title: `Delete ${name}?`,
           steps: [`Delete Tetharr's copy (${size(orphan.size)})`],
           consequences: [
-            { tone: "error", text: `${orphan.arr} no longer lists this title, so nothing will download it again.` },
-            { tone: "success", text: `${size(orphan.size)} of local space is freed.` },
+            { tone: "error", text: `${orphan.arr} no longer lists this title, so nothing downloads it again.` },
+            { tone: "success", text: `Frees ${size(orphan.size)} of local space.` },
           ],
           choices: [{ value: "delete", label: "Delete the copy", tone: "error" }],
         },
@@ -47,8 +47,7 @@ async function settle(orphan: Orphan, action: "keep" | "delete") {
 <template>
   <SectionCardComponent
     v-if="orphans.length"
-    :title="`Copies of ${kind} no longer in ${kind === 'movies' ? 'Radarr' : 'Sonarr'}`"
-    :description="`Tetharr made these copies, but the ${kind} have since been removed. Keep or delete each one.`"
+    :title="`Copies of ${kind} removed from ${kind === 'movies' ? 'Radarr' : 'Sonarr'}`"
   >
     <div v-if="error" role="alert" class="m-5 alert alert-soft alert-error">
       <PhWarningCircle class="size-5" />{{ error.message }}

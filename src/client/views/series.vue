@@ -29,12 +29,14 @@ const filter = ref("all");
 
 type Show = NonNullable<typeof data.value>["series"][number];
 
-// The filters: everything, anything pinned (the series or some of its seasons), anything with local copies, and series
-// with no files yet
+// The filters: everything, anything pinned (the series or some of its seasons), series whose files are all streamed,
+// anything with local copies, series whose files Tetharr can't see, and series with no files yet
 const FILTERS: { key: string; label: string; test: (s: Show) => boolean }[] = [
   { key: "all", label: "All", test: () => true },
   { key: "pinned", label: "Pinned", test: (s) => s.pinned || s.seasonsPinned.length > 0 },
+  { key: "streamed", label: "Streamed", test: (s) => s.state === "streamed" },
   { key: "local", label: "Has local copies", test: (s) => s.copies > 0 },
+  { key: "attention", label: "Needs attention", test: (s) => s.state === "unseen" },
   { key: "none", label: "No files", test: (s) => s.files === 0 },
 ];
 
@@ -58,8 +60,7 @@ const shows = computed(() => {
 
 /**
  * The label for a series' card: what the worker is doing to it right now (while copying, which of the pinned files it's
- * on), or how many of its files are local copies. Series with no copies get no label, because checking every file means
- * a request per series; their page shows it.
+ * on), or else where its files live.
  */
 function badge(show: Show) {
   const current = activity.value?.current;
@@ -69,10 +70,7 @@ function badge(show: Show) {
     const detail = current.action === "copying" ? `${Math.min(show.copies + 1, files)}/${files}` : undefined;
     return { state: current.action, detail };
   }
-  if (!show.copies) return;
-  return show.copies >= show.files
-    ? { state: "local" as const }
-    : { state: "partial" as const, detail: `${show.copies}/${show.files}` };
+  return { state: show.state };
 }
 
 /**
@@ -88,9 +86,7 @@ async function toggle(show: Show) {
         show.copies === 1 ? "Delete Tetharr's local copy" : `Delete Tetharr's ${show.copies} local copies`,
         "Ask Sonarr to download each season again",
       ],
-      consequences: [
-        { tone: "warning", text: "Those episodes will be missing until Sonarr finishes downloading them." },
-      ],
+      consequences: [{ tone: "warning", text: "Those episodes are missing until Sonarr downloads them again." }],
       choices: [{ value: "unpin", label: "Unpin and re-grab", tone: "error" }],
     });
     if (!choice) return;
@@ -106,7 +102,7 @@ const details = (show: Show) => `${show.year} · ${show.files} file${show.files 
 </script>
 
 <template>
-  <PageHeaderComponent title="Series" :detail="data ? `${data.series.length} series across your Sonarrs` : undefined">
+  <PageHeaderComponent title="Series" :detail="data ? `${data.series.length} series` : undefined">
     <label class="input w-full sm:w-64">
       <PhMagnifyingGlass class="size-4 opacity-50" />
       <input v-model="search" type="search" placeholder="Search titles" />
@@ -132,7 +128,7 @@ const details = (show: Show) => `${show.year} · ${show.files} file${show.files 
     :icon="PhPlugs"
     title="No series yet"
   >
-    Connect a Sonarr and its series will show up here.
+    Connect a Sonarr to see its series.
     <RouterLink to="/settings" class="btn btn-primary btn-sm">Go to settings</RouterLink>
   </EmptyStateComponent>
 
@@ -168,7 +164,7 @@ const details = (show: Show) => `${show.year} · ${show.files} file${show.files 
         :to="`/series/${show.arr}/${show.id}`"
         @pin="toggle(show)"
       >
-        <StateBadgeComponent v-if="badge(show)" v-bind="badge(show)!" />
+        <StateBadgeComponent v-bind="badge(show)" />
       </PosterCardComponent>
     </ul>
   </template>

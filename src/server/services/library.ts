@@ -106,9 +106,8 @@ export async function movies(): Promise<{ movies: Entry[]; orphans: Orphan[]; er
 }
 
 /**
- * A series in the grid: which Sonarr it came from, whether it's pinned as a whole, which seasons are pinned on their
- * own, and how many of its episode files are local copies Tetharr made. File states aren't checked here, since that
- * means a request per series; the series' own page checks them.
+ * A series: which Sonarr it came from, whether it's pinned as a whole, which seasons are pinned on their own, and how
+ * many of its episode files are local copies Tetharr made.
  */
 export interface Show extends Series {
   arr: number;
@@ -116,6 +115,11 @@ export interface Show extends Series {
   seasonsPinned: number[];
   copies: number;
 }
+
+/**
+ * A series in the grid, with where its files live.
+ */
+type Card = Show & { state: Awaited<ReturnType<typeof place>> };
 
 /**
  * One episode file: where Tetharr sees it, what it is right now, and whether it's a copy Tetharr made (and if so,
@@ -169,11 +173,26 @@ export async function episodes(arr: Arr, series: Series): Promise<EpisodeFile[]>
 }
 
 /**
- * Every series from every Sonarr in title order, plus copies of series that are no longer in Sonarr. A Sonarr that
- * can't be reached is listed in `errors` instead.
+ * Where a series' files live, for its card: all links, all real files (Tetharr's copies or not), a mix, or nothing
+ * Tetharr can see. It's judged from the video files in the series' folder, because Sonarr only lists files one series
+ * at a time. Links aren't followed, so whether they can be is left to the series' own page.
  */
-export async function series(): Promise<{ series: Show[]; orphans: Orphan[]; errors: string[] }> {
-  const found: Show[] = [];
+async function place(arr: Arr, show: Show, copies: Set<string>) {
+  if (!show.files) return "none" as const;
+  const files = await FilesService.scan(PathsService.map(arr, show.path));
+  const links = files.filter((f) => f.link).length;
+  if (!files.length) return "unseen" as const;
+  if (links === files.length) return "streamed" as const;
+  if (links) return "partial" as const;
+  return files.every((f) => copies.has(f.path)) ? ("local" as const) : ("unmanaged" as const);
+}
+
+/**
+ * Every series from every Sonarr in title order, with where its files live, plus copies of series that are no longer
+ * in Sonarr. A Sonarr that can't be reached is listed in `errors` instead.
+ */
+export async function series(): Promise<{ series: Card[]; orphans: Orphan[]; errors: string[] }> {
+  const found: Card[] = [];
   const left: Orphan[] = [];
   const errors: string[] = [];
 
@@ -182,7 +201,8 @@ export async function series(): Promise<{ series: Show[]; orphans: Orphan[]; err
     try {
       const listed = await shows(arr);
       const folders = listed.map((s) => PathsService.map(arr, s.path));
-      found.push(...listed);
+      const copies = new Set(CopiesService.list(arr.id).map((c) => c.path));
+      found.push(...(await Promise.all(listed.map(async (s) => ({ ...s, state: await place(arr, s, copies) })))));
       left.push(...(await orphans(arr, listed.length, (path) => folders.some((f) => PathsService.within(f, path)))));
     } catch (err) {
       errors.push((err as Error).message);

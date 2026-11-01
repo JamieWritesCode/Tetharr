@@ -38,6 +38,10 @@ Your usenet or debrid mount must appear at the **same path** inside Tetharr as i
 
 The rclone mount usually appears _after_ containers start. Without `rslave` propagation (`slave` in Unraid's volume settings), Tetharr sees an empty folder where the mount should be, and every streamed file shows as **Unreachable**. Tetharr never acts on an unreachable file, but it can't do anything useful either.
 
+### Reporting a problem
+
+Open an issue on GitHub and attach the diagnostics bundle from **Settings → Diagnostics**. It holds your setup, a check of each connection, and Tetharr's recent history and log. It includes titles and paths from your library, but never API keys.
+
 ## Development
 
 Tetharr only ever sees symlinks, their targets, and the Arrs' APIs, so the whole thing runs on a laptop with no media stack. Keep it there. This tool is designed to delete files, and the machine it's developed on should hold nothing you'd miss.

@@ -81,10 +81,7 @@ const file = (row: { title: string; path: string }) => {
 </script>
 
 <template>
-  <PageHeaderComponent
-    title="Activity"
-    detail="What Tetharr is doing to your library, what's next, and what it has done"
-  />
+  <PageHeaderComponent title="Activity" />
 
   <ProblemsComponent :errors="[queueError?.message, historyError?.message]" />
 
@@ -107,7 +104,7 @@ const file = (row: { title: string; path: string }) => {
   <template v-if="tab === 'queue'">
     <div v-if="queuing" class="h-48 w-full skeleton" />
     <EmptyStateComponent v-else-if="!current && !waiting.length" :icon="PhCheckCircle" title="Nothing waiting">
-      Every file matches what's pinned. Pin or unpin a title and the work shows up here.
+      Every file matches what's pinned.
     </EmptyStateComponent>
     <ul v-else class="card divide-y divide-base-300 bg-base-100 card-border">
       <!-- What the worker is doing now, with a progress bar while it copies -->
@@ -116,7 +113,7 @@ const file = (row: { title: string; path: string }) => {
           <StateBadgeComponent
             :state="current.action"
             :detail="percent === undefined ? undefined : `${percent}%`"
-            class="w-full justify-start"
+            class="justify-self-start"
           />
           <RouterLink :to="ActivityService.to(current)" class="min-w-0 flex-1 truncate font-medium hover:text-primary">
             {{ current.title }}
@@ -134,7 +131,7 @@ const file = (row: { title: string; path: string }) => {
         :key="step.path"
         class="grid grid-cols-[8rem_1fr] items-start gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[8rem_1fr_auto]"
       >
-        <StateBadgeComponent state="queued" class="mt-0.5 w-full justify-start" />
+        <StateBadgeComponent state="queued" class="mt-0.5 justify-self-start" />
         <div class="min-w-0 flex-1">
           <RouterLink :to="ActivityService.to(step)" class="block truncate font-medium hover:text-primary">
             {{ step.title }}
@@ -151,7 +148,7 @@ const file = (row: { title: string; path: string }) => {
   <template v-else>
     <div v-if="loading" class="h-48 w-full skeleton" />
     <EmptyStateComponent v-else-if="!entries.length" :icon="PhClockCounterClockwise" title="Nothing yet">
-      Every file Tetharr copies, restores or re-grabs will be listed here.
+      Copies, restores and re-grabs will show up here.
     </EmptyStateComponent>
     <template v-else>
       <ul class="card divide-y divide-base-300 bg-base-100 card-border">
@@ -161,7 +158,7 @@ const file = (row: { title: string; path: string }) => {
           class="grid grid-cols-[8rem_1fr] items-start gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[8rem_1fr_auto]"
         >
           <span
-            class="mt-0.5 badge w-full justify-start gap-1 badge-soft badge-sm"
+            class="mt-0.5 badge gap-1 justify-self-start badge-soft badge-sm"
             :class="entry.error ? 'badge-error' : DONE[entry.action].tone"
           >
             <component :is="entry.error ? PhWarningCircle : DONE[entry.action].icon" weight="bold" class="size-3.5" />

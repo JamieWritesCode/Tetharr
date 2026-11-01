@@ -8,6 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import * as ActivityRoutes from "./routes/activity/index.ts";
 import * as ArrRoutes from "./routes/arrs/index.ts";
 import * as CopyRoutes from "./routes/copies/index.ts";
+import * as DiagnosticsRoutes from "./routes/diagnostics/index.ts";
 import * as MovieRoutes from "./routes/movies/index.ts";
 import * as SeriesRoutes from "./routes/series/index.ts";
 import * as SettingsRoutes from "./routes/settings/index.ts";
@@ -41,6 +42,7 @@ export const app = new Hono()
   .get("/activity", ...ActivityRoutes.status)
   .get("/activity/queue", ...ActivityRoutes.queue)
   .get("/activity/history", ...ActivityRoutes.history)
+  .get("/diagnostics", ...DiagnosticsRoutes.download)
   .get("/settings", ...SettingsRoutes.options)
   .patch("/settings", ...SettingsRoutes.update);
 

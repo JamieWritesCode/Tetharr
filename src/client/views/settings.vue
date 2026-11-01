@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * The settings page, in three sections: the Arr connections (each added, edited or removed in a dialog), the pinning
- * options, and the appearance of the app in this browser. Every setting is a row that saves as soon as it changes.
+ * The settings page, in four sections: the Arr connections (each added, edited or removed in a dialog), the pinning
+ * options, the appearance of the app in this browser, and the diagnostics bundle for reporting a problem. Every setting
+ * is a row that saves as soon as it changes.
  */
 
-import { PhPencilSimple, PhPlugs, PhPlus, PhWarningCircle } from "@phosphor-icons/vue";
+import { PhDownloadSimple, PhPencilSimple, PhPlugs, PhPlus, PhWarningCircle } from "@phosphor-icons/vue";
 import { nextTick, ref, watch } from "vue";
 import ArrFormComponent from "../components/arr-form.vue";
 import ArrIconComponent from "../components/arr-icon.vue";
@@ -13,6 +14,7 @@ import SectionCardComponent from "../components/section-card.vue";
 import SettingRowComponent from "../components/setting-row.vue";
 import { size } from "../format.ts";
 import * as ArrsService from "../services/arrs.ts";
+import * as DiagnosticsService from "../services/diagnostics.ts";
 import * as SettingsService from "../services/settings.ts";
 import * as ThemeService from "../services/theme.ts";
 
@@ -50,10 +52,10 @@ watch(reserve.value, (value) => (free.value = value), { immediate: true });
 </script>
 
 <template>
-  <PageHeaderComponent title="Settings" detail="How Tetharr reaches your Arrs and your library." />
+  <PageHeaderComponent title="Settings" />
 
   <div class="flex flex-col gap-6">
-    <SectionCardComponent title="Connections" description="The Radarr and Sonarr instances Tetharr works with.">
+    <SectionCardComponent title="Connections">
       <template #actions>
         <button type="button" class="btn btn-primary btn-sm" @click="editing = 'new'">
           <PhPlus weight="bold" class="size-4" />Add connection
@@ -70,7 +72,7 @@ watch(reserve.value, (value) => (free.value = value), { immediate: true });
 
       <div v-else-if="!arrs?.length" class="flex flex-col items-center gap-2 px-5 py-12 text-center">
         <PhPlugs class="size-8 text-base-content/40" />
-        <p class="text-sm text-base-content/60">No connections yet. Add your Radarr to see your movies.</p>
+        <p class="text-sm text-base-content/60">No connections yet.</p>
       </div>
 
       <ul v-else class="divide-y divide-base-300">
@@ -95,11 +97,11 @@ watch(reserve.value, (value) => (free.value = value), { immediate: true });
       </ul>
     </SectionCardComponent>
 
-    <SectionCardComponent title="Pinning" description="How Tetharr makes and undoes local copies.">
+    <SectionCardComponent title="Pinning">
       <div class="divide-y divide-base-300">
         <SettingRowComponent
           label="Keep free"
-          description="Never copy if it would leave less than this free on the library's disk."
+          description="Space to leave free on the library's disk after every copy."
           :state="reserve.state.value"
           :error="reserve.error.value"
         >
@@ -118,7 +120,7 @@ watch(reserve.value, (value) => (free.value = value), { immediate: true });
 
         <SettingRowComponent
           label="When a title is unpinned"
-          description="Restore puts the link back instantly. Re-grab deletes the copy, so the title is missing until the Arr downloads it again."
+          description="Restore puts the link back. Re-grab deletes the copy and has the Arr download it again."
           :state="unpin.state.value"
           :error="unpin.error.value"
         >
@@ -135,13 +137,21 @@ watch(reserve.value, (value) => (free.value = value), { immediate: true });
     </SectionCardComponent>
 
     <SectionCardComponent title="Appearance">
-      <SettingRowComponent
-        label="Theme"
-        description="This browser only. System follows your device's light or dark setting."
-      >
+      <SettingRowComponent label="Theme" description="This browser only.">
         <select v-model="theme" class="select w-full sm:w-56" aria-label="Theme">
           <option v-for="option in THEMES" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
+      </SettingRowComponent>
+    </SectionCardComponent>
+
+    <SectionCardComponent title="Diagnostics">
+      <SettingRowComponent
+        label="Bundle"
+        description="Setup, checks, history and log, for bug reports. Has titles and paths, never API keys."
+      >
+        <a :href="DiagnosticsService.url" download class="btn w-full sm:w-auto">
+          <PhDownloadSimple class="size-4" />Download
+        </a>
       </SettingRowComponent>
     </SectionCardComponent>
   </div>

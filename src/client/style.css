@@ -100,6 +100,10 @@
 }
 
 @layer base {
+  /* Always leave room for the scrollbar, so pages line up whether or not they're long enough to scroll */
+  html {
+    scrollbar-gutter: stable;
+  }
   body {
     @apply bg-base-200 text-base-content antialiased;
   }

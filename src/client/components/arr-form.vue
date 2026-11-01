@@ -93,13 +93,13 @@ async function forget(arr: Saved) {
           {
             value: "restore",
             label: "Restore everything, then remove",
-            detail: `Unpin every title and put its links back, or have ${arr.name} download it again where a link can't be restored. The connection is removed once that's done.`,
+            detail: `Unpin every title and put its links back, re-grabbing any that can't be. Then remove the connection.`,
             tone: "primary",
           },
           {
             value: "leave",
-            label: "Remove now, and leave the files as they are",
-            detail: `${arr.copies === 1 ? "The copy stays where it is as an unmanaged file" : `The ${copies} stay where they are as unmanaged files`}, and Tetharr will never change or delete ${arr.copies === 1 ? "it" : "them"}.`,
+            label: "Remove now and leave the files",
+            detail: `${arr.copies === 1 ? "The copy stays as an unmanaged file" : `The ${copies} stay as unmanaged files`}, never touched again.`,
             tone: "error",
           },
         ],
@@ -117,10 +117,7 @@ async function forget(arr: Saved) {
 <template>
   <form novalidate @submit.prevent="submit((input) => save({ id: arr?.id, input }, { onSuccess: () => emit('done') }))">
     <header class="mb-6 flex items-start justify-between gap-4">
-      <div>
-        <h2 class="text-lg font-semibold">{{ arr ? `Edit ${arr.name}` : "Add a connection" }}</h2>
-        <p class="text-sm text-base-content/60">Test it before saving to check Tetharr can reach it.</p>
-      </div>
+      <h2 class="text-lg font-semibold">{{ arr ? `Edit ${arr.name}` : "Add a connection" }}</h2>
       <button type="button" class="btn btn-square btn-ghost btn-sm" aria-label="Close" @click="emit('done')">
         <PhX class="size-4" />
       </button>
@@ -189,7 +186,7 @@ async function forget(arr: Saved) {
         <div>
           <h3 class="text-sm font-semibold">Path mappings</h3>
           <p class="text-sm text-base-content/60">
-            Only needed if the Arr and Tetharr see your library at different paths. For example, the Arr might see
+            Only needed if the Arr sees your library at a different path, like
             <code class="font-mono text-xs">/data/media</code> where Tetharr sees
             <code class="font-mono text-xs">/mnt/media</code>.
           </p>

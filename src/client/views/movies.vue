@@ -59,7 +59,7 @@ const movies = computed(() => {
 </script>
 
 <template>
-  <PageHeaderComponent title="Movies" :detail="data ? `${data.movies.length} movies across your Radarrs` : undefined">
+  <PageHeaderComponent title="Movies" :detail="data ? `${data.movies.length} movies` : undefined">
     <label class="input w-full sm:w-64">
       <PhMagnifyingGlass class="size-4 opacity-50" />
       <input v-model="search" type="search" placeholder="Search titles" />
@@ -86,7 +86,7 @@ const movies = computed(() => {
     :icon="PhPlugs"
     title="No movies yet"
   >
-    Connect a Radarr and its movies will show up here.
+    Connect a Radarr to see its movies.
     <RouterLink to="/settings" class="btn btn-primary btn-sm">Go to settings</RouterLink>
   </EmptyStateComponent>
 
