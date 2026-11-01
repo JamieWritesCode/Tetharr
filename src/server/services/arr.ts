@@ -16,6 +16,7 @@ export interface Movie {
   sortTitle: string;
   year: number;
   poster: string | undefined;
+  overview: string;
   size: number;
   file: string | undefined;
 }
@@ -57,6 +58,7 @@ interface Item {
   title: string;
   sortTitle: string;
   year: number;
+  overview?: string;
   sizeOnDisk: number;
   images: { coverType: string; remoteUrl?: string }[];
   movieFile?: { path: string };
@@ -129,16 +131,19 @@ export async function status(arr: Input): Promise<string> {
  * Every movie in a Radarr, whether or not it has a file yet.
  */
 export async function movies(arr: Input): Promise<Movie[]> {
-  return (await request<Item[]>(arr, "movie")).map(({ id, title, sortTitle, year, sizeOnDisk, images, movieFile }) => ({
-    id,
-    title,
-    sortTitle,
-    year,
-    // Ask TMDB for a card-sized poster rather than the full-resolution original
-    poster: images.find((i) => i.coverType === "poster")?.remoteUrl?.replace("/t/p/original/", "/t/p/w342/"),
-    size: sizeOnDisk,
-    file: movieFile?.path,
-  }));
+  return (await request<Item[]>(arr, "movie")).map(
+    ({ id, title, sortTitle, year, overview, sizeOnDisk, images, movieFile }) => ({
+      id,
+      title,
+      sortTitle,
+      year,
+      // Ask TMDB for a card-sized poster rather than the full-resolution original
+      poster: images.find((i) => i.coverType === "poster")?.remoteUrl?.replace("/t/p/original/", "/t/p/w342/"),
+      overview: overview ?? "",
+      size: sizeOnDisk,
+      file: movieFile?.path,
+    }),
+  );
 }
 
 /**
