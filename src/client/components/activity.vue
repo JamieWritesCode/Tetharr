@@ -12,14 +12,8 @@ const { data } = ActivityService.useStatus();
 // What each worker action is called here
 const ACTIONS = { copying: "Copying", restoring: "Restoring", regrabbing: "Re-grabbing" };
 
-// The page of the title being worked on. Only a series' steps have a season, which tells the two apart, and a series'
-// page opens at that season
-const to = computed(() => {
-  const current = data.value?.current;
-  if (!current) return;
-  const { arr, media, season } = current;
-  return season === null ? `/movies/${arr}/${media}` : `/series/${arr}/${media}#season-${season}`;
-});
+// The page of the title being worked on
+const to = computed(() => data.value?.current && ActivityService.to(data.value.current));
 
 // How far the copy has got, as a whole percentage
 const percent = computed(() => {

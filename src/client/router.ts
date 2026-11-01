@@ -23,6 +23,7 @@ export const router = createRouter({
         { path: ":arr/:id", component: () => import("./views/show.vue") },
       ],
     },
+    { path: "/activity", component: () => import("./views/activity.vue") },
     { path: "/settings", component: () => import("./views/settings.vue") },
   ],
 });

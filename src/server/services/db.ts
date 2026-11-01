@@ -52,6 +52,21 @@ const MIGRATIONS = [
     path TEXT PRIMARY KEY,
     created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  // 2: the history of what the worker has done, one row per file it copied, restored or deleted for a re-grab, with the
+  // problem when that failed. Kept by time, so old rows can be cleared out
+  `CREATE TABLE history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    arr INTEGER NOT NULL,
+    media INTEGER NOT NULL,
+    season INTEGER,
+    title TEXT NOT NULL,
+    path TEXT NOT NULL,
+    action TEXT NOT NULL,
+    size INTEGER,
+    error TEXT
+  );
+  CREATE INDEX history_created ON history (created)`,
 ];
 
 // How many backups taken before migrating are kept
@@ -86,9 +101,12 @@ function migrate(file: string, existed: boolean): void {
   }
   if (version === MIGRATIONS.length) return;
 
-  // Back up an existing database first, then keep only the newest few backups
+  // Back up an existing database first, replacing a backup of the same version left by a migration that failed, then
+  // keep only the newest few backups
   if (existed) {
-    db.exec(`VACUUM INTO '${`${file}.v${version}.bak`.replaceAll("'", "''")}'`);
+    const backup = `${file}.v${version}.bak`;
+    rmSync(backup, { force: true });
+    db.exec(`VACUUM INTO '${backup.replaceAll("'", "''")}'`);
     const prefix = `${path.basename(file)}.v`;
     const backups = readdirSync(path.dirname(file))
       .filter((f) => f.startsWith(prefix) && f.endsWith(".bak"))

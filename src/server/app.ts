@@ -39,6 +39,8 @@ export const app = new Hono()
   .delete("/series/:arr/:id/seasons/:season/pin", ...SeriesRoutes.unpin)
   .post("/copies/resolve", ...CopyRoutes.resolve)
   .get("/activity", ...ActivityRoutes.status)
+  .get("/activity/queue", ...ActivityRoutes.queue)
+  .get("/activity/history", ...ActivityRoutes.history)
   .get("/settings", ...SettingsRoutes.options)
   .patch("/settings", ...SettingsRoutes.update);
 

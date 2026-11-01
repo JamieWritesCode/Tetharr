@@ -2,7 +2,7 @@
 
 Tetharr is a web app for Radarr/Sonarr users who stream their library from usenet or debrid (NzbDav, Zurg, Decypharr or similar, mounted with rclone). It lets you choose, title by title, which movies and shows are kept as local copies and which stay as links to the streamed copy. Pinning a title swaps its links for real copies at the same paths. Unpinning it swaps them back.
 
-**Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons. An activity history, a diagnostics bundle and login are next, before Tetharr is advertised. Read [Where this is going](#where-this-is-going) before building them.
+**Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons, and the Activity page shows the worker's queue and history. A diagnostics bundle and login are next, before Tetharr is advertised. Read [Where this is going](#where-this-is-going) before building them.
 
 ## Glossary
 
@@ -25,6 +25,8 @@ Use these terms the same way in the UI, code, logs and docs.
 | **Missing**                           | Nothing at the path Tetharr expected. Usually a path mapping                                                                         |
 | **Mount**                             | The rclone mount of the usenet or debrid store. Link targets live inside it                                                          |
 | **Path mapping**                      | A translation between the path an Arr reports and the path Tetharr sees, needed when they run in different containers                |
+| **Queue**                             | What the worker still has to do, worked out from the pins and the files whenever it's shown. Never stored or reordered               |
+| **History**                           | What the worker has done to each file, kept for 90 days. A record for the user, never used to decide anything                        |
 
 Avoid "offload", "on disk" (a link is on disk too) and "tier" in anything a user reads.
 
@@ -50,7 +52,7 @@ These decisions are settled. Build to them.
 
 - **The UI decides what is pinned.** Pins are stored in Tetharr's database (`pins`). Arr tags are not used.
 - **Granularity is movie, series, and season.** A pin with no season covers the whole title. A series pin is live: it covers every season, including episodes that arrive later. While a series is pinned, its seasons can't be pinned separately, and pinning the series replaces any season pins. The series grid only knows pins and copy counts (checking every file would mean a request per series), so each series' own page is where file states are checked. A re-grab for a series searches just the affected season.
-- **A background worker makes it so** ([src/server/worker.ts](src/server/worker.ts)). It is one idempotent pass: copy what's pinned and still streamed, undo Tetharr's copies of anything no longer pinned, one file at a time. It runs every five minutes, and straight away when the user pins or unpins. After a pass that hit problems it tries again after 30 seconds, doubling up to five minutes, so an Arr that started after Tetharr (common after a reboot) is picked up quickly. Because every step is safe to repeat, anything that fails or is interrupted is retried by the next pass. Its current activity and copy progress are held in memory for the UI, as a view onto the pass, not a second source of truth.
+- **A background worker makes it so** ([src/server/worker.ts](src/server/worker.ts)). It is one idempotent pass: copy what's pinned and still streamed, undo Tetharr's copies of anything no longer pinned, one file at a time. It runs every five minutes, and straight away when the user pins or unpins. After a pass that hit problems it tries again after 30 seconds, doubling up to five minutes, so an Arr that started after Tetharr (common after a reboot) is picked up quickly. Because every step is safe to repeat, anything that fails or is interrupted is retried by the next pass. Its current activity and copy progress are held in memory for the UI, as a view onto the pass, not a second source of truth. Each file it copies, restores or re-grabs, and each failure, goes in `history`. The queue on the Activity page is worked out with the same rule a pass uses (`due` in the worker), so it can't disagree with what a pass will do. There is no managed queue to reorder or cancel.
 - **Unpinning restores the link.** Pinning records where the link pointed. Unpinning recreates it if that target still resolves, with no gap and no search. Otherwise it deletes the copy and asks the Arr to re-grab. "Always re-grab" is a setting.
 - **Preview mode comes after the first release.** A switch in Settings, on by default for new installs, where the worker runs every check and shows what it would do, but changes nothing. Its interface (a banner, a plan of pending actions, confirmation when turning it off) is still to be designed.
 - **Branch mode comes later:** links in one folder and copies in another, merged by mergerfs. In-place mode (both in the same folder) is the only mode for now.
@@ -114,7 +116,8 @@ src/
     routes/<module>/  one handler per file, plus an index.ts barrel per module
     services/         one file per external system or domain boundary: arr (the Arr API), files (copy, restore,
                       delete), paths, library, checks (can a connection see its library?), db (migrations), settings,
-                      pins, copies, temps (temporary files being written), http, log
+                      pins, copies, temps (temporary files being written), history (what the worker has done), http,
+                      log
   client/
     main.ts           boot: router, query cache, styles
     app.vue           the frame around every page

@@ -5,7 +5,7 @@
  * page, and the navigation becomes a tab bar along the bottom.
  */
 
-import { PhFilmStrip, PhGearSix, PhTelevisionSimple } from "@phosphor-icons/vue";
+import { PhFilmStrip, PhGearSix, PhPulse, PhTelevisionSimple } from "@phosphor-icons/vue";
 import ActivityComponent from "./components/activity.vue";
 import BrandComponent from "./components/brand.vue";
 import ConfirmDialogComponent from "./components/confirm-dialog.vue";
@@ -15,6 +15,7 @@ import WorkerProblemsComponent from "./components/worker-problems.vue";
 const PAGES = [
   { to: "/movies", label: "Movies", icon: PhFilmStrip },
   { to: "/series", label: "Series", icon: PhTelevisionSimple },
+  { to: "/activity", label: "Activity", icon: PhPulse },
   { to: "/settings", label: "Settings", icon: PhGearSix },
 ];
 </script>
