@@ -1,8 +1,8 @@
 {
   "name": "tetharr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "description": "Choose which Radarr/Sonarr titles live on local disk and which stream from usenet symlinks",
+  "description": "Choose which Radarr and Sonarr titles keep local copies and which stream from your rclone mount, whether that's usenet or debrid",
   "license": "MIT",
   "type": "module",
   "engines": {

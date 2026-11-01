@@ -1,8 +1,8 @@
 # Tetharr
 
-Choose which Radarr and Sonarr titles live on local disk and which stream from usenet, from a web interface, without your media server noticing.
+Choose which Radarr and Sonarr titles live on local disk and which stream from usenet or debrid, from a web interface, without your media server noticing.
 
-If your Arrs import symlinks into a usenet mount (NzbDav, AltMount and similar, mounted with rclone), you get an effectively unlimited library that takes almost no disk space. Sometimes you still want a title kept locally: the show you're watching right now, the kids' films, anything you'd hate to lose to a takedown. Tetharr swaps a title's symlinks for real copies at the same paths, and back again, so Plex/Jellyfin watch state and the Arrs' records never notice.
+If your Arrs import symlinks into a usenet or debrid mount (NzbDav, AltMount, Zurg, Decypharr and similar, mounted with rclone), you get an effectively unlimited library that takes almost no disk space. Sometimes you still want a title kept locally: the show you're watching right now, the kids' films, anything you'd hate to lose to a takedown. Tetharr swaps a title's symlinks for real copies at the same paths, and back again, so Plex/Jellyfin watch state and the Arrs' records never notice.
 
 > **Status:** early, and so far used only by its author. Pinning and unpinning work for Radarr movies and Sonarr series and seasons. Try it on a few titles before trusting it with your whole library.
 >
@@ -32,7 +32,7 @@ Open `http://<host>:8787`, go to **Settings**, and add your Radarr. You'll find 
 
 Radarr and Tetharr usually run in separate containers, so the same file can have a different path in each. If Radarr reports `/movies/Film (2020)/Film.mkv` and Tetharr sees that file at `/data/media/movies/Film (2020)/Film.mkv`, add a mapping from `/movies` to `/data/media/movies`. If the library shows files as **Missing**, a mapping is usually missing.
 
-Your usenet mount must appear at the **same path** inside Tetharr as inside the Arrs (for example `/data/nzbdav` in both). The links the Arrs create point at that path, so Tetharr has to see the mount there to follow them and to copy from them.
+Your usenet or debrid mount must appear at the **same path** inside Tetharr as inside the Arrs (for example `/data/nzbdav` in both). The links the Arrs create point at that path, so Tetharr has to see the mount there to follow them and to copy from them.
 
 ### Mount propagation (read this)
 

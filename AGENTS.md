@@ -1,6 +1,6 @@
 # Tetharr
 
-Tetharr is a web app for Radarr/Sonarr users who stream their library from usenet (NzbDav or similar, mounted with rclone). It lets you choose, title by title, which movies and shows are kept as local copies and which stay as links to the usenet copy. Pinning a title swaps its links for real copies at the same paths. Unpinning it swaps them back.
+Tetharr is a web app for Radarr/Sonarr users who stream their library from usenet or debrid (NzbDav, Zurg, Decypharr or similar, mounted with rclone). It lets you choose, title by title, which movies and shows are kept as local copies and which stay as links to the streamed copy. Pinning a title swaps its links for real copies at the same paths. Unpinning it swaps them back.
 
 **Status:** Pinning and unpinning work for Radarr movies and for Sonarr series and seasons. An activity history, a diagnostics bundle and login are next, before Tetharr is advertised. Read [Where this is going](#where-this-is-going) before building them.
 
@@ -14,7 +14,7 @@ Use these terms the same way in the UI, code, logs and docs.
 | **Title**                             | A movie, series or season that can be pinned                                                                                         |
 | **Pin / Unpin**                       | The user's choice: keep a local copy of this title, or free up the space and stream it again. The only verbs a user performs         |
 | **Pinned**                            | The user has asked for this title to be local. True from the moment they pin it, even while it's still copying                       |
-| **Streamed**                          | The file is a link (symlink) into the usenet mount                                                                                   |
+| **Streamed**                          | The file is a link (symlink) into the mount                                                                                          |
 | **Local**                             | The file is a real file on local storage                                                                                             |
 | **Copy**                              | A local file Tetharr created. The `copies` table records them, and they are the only files Tetharr may delete                        |
 | **Partly local / Partly pinned**      | A series where only some files are local copies, or only some seasons are pinned. Short labels, never "6 of 10 local"                |
@@ -23,7 +23,7 @@ Use these terms the same way in the UI, code, logs and docs.
 | **Re-grab**                           | Asking the Arr to download a title again, used when a link can't be restored                                                         |
 | **Unreachable**                       | A link that can't be followed: the mount is down or the link is broken                                                               |
 | **Missing**                           | Nothing at the path Tetharr expected. Usually a path mapping                                                                         |
-| **Mount**                             | The rclone mount of the usenet store. Link targets live inside it                                                                    |
+| **Mount**                             | The rclone mount of the usenet or debrid store. Link targets live inside it                                                          |
 | **Path mapping**                      | A translation between the path an Arr reports and the path Tetharr sees, needed when they run in different containers                |
 
 Avoid "offload", "on disk" (a link is on disk too) and "tier" in anything a user reads.
