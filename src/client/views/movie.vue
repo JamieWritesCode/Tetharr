@@ -32,9 +32,9 @@ watch(
 
 // What a file that isn't simply streamed or local means, and what to check
 const NOTES: Partial<Record<string, string>> = {
-  broken: "The link points into the mount, but Tetharr can't follow it. Check that the mount is up inside Tetharr.",
-  unseen: "There's nothing at this path inside Tetharr. Check the path mappings for this connection in Settings.",
-  unmanaged: "Tetharr didn't make this file, so it never changes or deletes it.",
+  broken: "Tetharr can't follow this link. Check that the mount is up inside Tetharr.",
+  unseen: "Tetharr can't see this file. Check the connection's path mappings in Settings.",
+  unmanaged: "Tetharr didn't make this file, so it never touches it.",
   none: "Radarr has no file for this movie yet.",
 };
 const note = computed(() => movie.value && NOTES[badge(movie.value).state]);
@@ -69,7 +69,7 @@ const note = computed(() => movie.value && NOTES[badge(movie.value).state]);
               class="btn btn-sm"
               :class="movie.pinned ? 'btn-primary' : ''"
               :aria-pressed="movie.pinned"
-              :title="movie.pinned ? 'Unpin: free up the space and stream it again' : 'Pin: keep a local copy'"
+              :title="movie.pinned ? 'Unpin and stream it again' : 'Keep a local copy'"
               @click="toggle(movie)"
             >
               <PhPushPin :weight="movie.pinned ? 'fill' : 'bold'" class="size-4" />
@@ -80,7 +80,7 @@ const note = computed(() => movie.value && NOTES[badge(movie.value).state]);
       </div>
     </section>
 
-    <SectionCardComponent title="File" description="Where the movie's file lives, at the path Tetharr sees it.">
+    <SectionCardComponent title="File">
       <div class="flex flex-col gap-1.5 px-5 py-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="min-w-0 truncate font-mono text-xs" :title="movie.path">

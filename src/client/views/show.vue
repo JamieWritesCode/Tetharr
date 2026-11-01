@@ -101,9 +101,7 @@ function summary(season: Season) {
     return { state: "queued" as const };
   }
   if (!local) return { state: "streamed" as const };
-  return local === items.length
-    ? { state: "local" as const }
-    : { state: "partial" as const, detail: `${local}/${items.length}` };
+  return { state: local === items.length ? ("local" as const) : ("partial" as const) };
 }
 
 /**
@@ -123,14 +121,12 @@ async function toggle(season?: Season) {
       summary:
         options.value?.unpin === "regrab"
           ? "Unpinning is set to always re-grab."
-          : "Some streamed files are gone, so their links can't simply be put back.",
+          : "Some streamed files are gone, so their links can't be restored.",
       steps: [
         `Delete ${regrab.length === 1 ? "Tetharr's local copy" : `${regrab.length} of Tetharr's local copies`} (${size(regrab.reduce((t, f) => t + f.size, 0))})`,
         season ? "Ask Sonarr to download the season again" : "Ask Sonarr to download each season again",
       ],
-      consequences: [
-        { tone: "warning", text: "Those episodes will be missing until Sonarr finishes downloading them." },
-      ],
+      consequences: [{ tone: "warning", text: "Those episodes are missing until Sonarr downloads them again." }],
       choices: [{ value: "unpin", label: "Unpin and re-grab", tone: "error" }],
     });
     if (!choice) return;
@@ -170,7 +166,7 @@ async function toggle(season?: Season) {
               class="btn btn-sm"
               :class="show.pinned ? 'btn-primary' : ''"
               :aria-pressed="show.pinned"
-              :title="show.pinned ? 'Unpin: free up the space and stream it again' : 'Pin: keep local copies'"
+              :title="show.pinned ? 'Unpin and stream it again' : 'Keep local copies'"
               @click="toggle()"
             >
               <PhPushPin :weight="show.pinned ? 'fill' : 'bold'" class="size-4" />
@@ -181,10 +177,7 @@ async function toggle(season?: Season) {
       </div>
     </section>
 
-    <SectionCardComponent
-      title="Seasons"
-      description="Pin a season to keep just its episodes local. Pinning the series covers every season, including new ones."
-    >
+    <SectionCardComponent title="Seasons">
       <ul class="divide-y divide-base-300">
         <li v-for="season in seasons" :id="`season-${season.number}`" :key="season.number" class="px-5 py-4">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">

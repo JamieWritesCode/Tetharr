@@ -73,11 +73,11 @@ export function useToggle() {
         summary:
           options.value?.unpin === "regrab"
             ? "Unpinning is set to always re-grab."
-            : "Its streamed file is gone, so the link can't simply be put back.",
+            : "Its streamed file is gone, so the link can't be restored.",
         steps: [`Delete Tetharr's local copy (${size(movie.size)})`, "Ask Radarr to download it again"],
         consequences: [
-          { tone: "warning", text: `${movie.title} will be missing until Radarr finishes downloading it.` },
-          { tone: "success", text: `${size(movie.size)} of local space is freed.` },
+          { tone: "warning", text: `${movie.title} is missing until Radarr downloads it again.` },
+          { tone: "success", text: `Frees ${size(movie.size)} of local space.` },
         ],
         choices: [{ value: "unpin", label: "Unpin and re-grab", tone: "error" }],
       });

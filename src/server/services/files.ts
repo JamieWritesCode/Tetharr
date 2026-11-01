@@ -4,7 +4,7 @@
  */
 
 import { rmSync } from "node:fs";
-import { copyFile, lstat, readlink, rename, rm, stat, statfs, symlink } from "node:fs/promises";
+import { copyFile, lstat, readdir, readlink, rename, rm, stat, statfs, symlink } from "node:fs/promises";
 import path from "node:path";
 import type { Copy } from "./copies.ts";
 
@@ -20,6 +20,9 @@ export type State = "streamed" | "local" | "broken" | "unseen";
  */
 export type Check = "copy" | "link" | "missing" | "replaced";
 
+// The kinds of video file a folder is judged by, leaving out subtitles, artwork, metadata and Tetharr's own temp files
+const VIDEOS = new Set([".avi", ".m4v", ".mkv", ".mov", ".mp4", ".mpg", ".ts", ".webm", ".wmv"]);
+
 // The copy being written right now, so its progress can be shown and a shutdown can clean it up
 let active: { temp: string; size: number } | undefined;
 
@@ -33,6 +36,17 @@ export const partial = (file: string) => path.join(path.dirname(file), `.${path.
  * The hidden name a restored link is made under, before it's swapped over the copy.
  */
 export const link = (file: string) => path.join(path.dirname(file), `.${path.basename(file)}.link`);
+
+/**
+ * Every video file in a folder and the folders inside it, and whether each is a link, without following any link, so
+ * it never touches the mount. A folder Tetharr can't see has no files as far as it can tell.
+ */
+export async function scan(folder: string): Promise<{ path: string; link: boolean }[]> {
+  const entries = await readdir(folder, { recursive: true, withFileTypes: true }).catch(() => []);
+  return entries
+    .filter((e) => (e.isFile() || e.isSymbolicLink()) && VIDEOS.has(path.extname(e.name).toLowerCase()))
+    .map((e) => ({ path: path.join(e.parentPath, e.name), link: e.isSymbolicLink() }));
+}
 
 /**
  * Works out the state of one library path.
